@@ -1,0 +1,1 @@
+Simple Text Editor from Scratch in C
