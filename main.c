@@ -37,6 +37,11 @@ int main(void)
                 break;
             }
         }
+
+        sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 255, 0));
+        sdl_cc(SDL_RenderClear(renderer));
+
+        SDL_RenderPresent(renderer);
     }
 
     SDL_Quit();
