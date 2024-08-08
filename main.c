@@ -6,6 +6,7 @@
 #include <SDL_ttf.h>
 
 #include "vec.h"
+#include "glyph.h"
 
 #define MAX_BUFFER_SIZE 1024
 
@@ -37,7 +38,7 @@ void loadFont(const char* fontFile, int fontSize, TTF_Font** font_ptr)
     return;
 }
 
-void copyRect(SDL_Rect* srcRect, SDL_Rect* dstRect) {
+void copyRect_GS(Glyph_Rect* srcRect, SDL_Rect* dstRect) {
     dstRect->x = srcRect->x;
     dstRect->y = srcRect->y;
     dstRect->w = srcRect->w;
@@ -45,7 +46,7 @@ void copyRect(SDL_Rect* srcRect, SDL_Rect* dstRect) {
     return;
 }
 
-void cacheTexture(SDL_Renderer* renderer, TTF_Font* font)
+SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* glyphMap)
 {
     SDL_Color color = { 255, 255, 255, 255 };
     int height = TTF_FontHeight(font);
@@ -68,9 +69,8 @@ void cacheTexture(SDL_Renderer* renderer, TTF_Font* font)
     }
 
     SDL_Rect cacheCursor = {.x = 0, .y = 0, .w = 0, .h = height};
-    SDL_Rect lastCache = {.x = 0, .y = 0, .w = 0, .h = height};
     //Generate Glyphs to cache to surface
-    for (int i = 0; i < strlen(asciiString); i++) {
+    for (size_t i = 0; i < strlen(asciiString); i++) {
         SDL_Surface* glyphSurface = sdl_cp(TTF_RenderGlyph_Blended(font, asciiString[i], color));
         sdl_cc(SDL_SetSurfaceBlendMode(glyphSurface, SDL_BLENDMODE_NONE));
         if(cacheCursor.x + glyphSurface->w >= maxWidth) {
@@ -82,38 +82,35 @@ void cacheTexture(SDL_Renderer* renderer, TTF_Font* font)
         SDL_Rect srcRect = {0, 0, glyphSurface->w, glyphSurface->h};
         SDL_Rect dstRect = {cacheCursor.x, cacheCursor.y, cacheCursor.w, cacheCursor.h};
         sdl_cc(SDL_BlitSurface(glyphSurface, &srcRect, cacheSurface, &dstRect));
+        addGlyph(glyphMap, asciiString[i], &cacheCursor);
         cacheCursor.x += glyphSurface->w;
-        copyRect(&cacheCursor, &lastCache);
     }
-    SDL_Rect tempRect = {.x = 0, .y = 0, .w = cacheSurface->w, .h = cacheSurface->h};
     SDL_Texture* cacheTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cacheSurface));
-    SDL_RenderCopy(renderer, cacheTexture, &tempRect, &tempRect);
+    return cacheTexture;
 
 }
 
 //Renders one specific character
-void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, TTF_Font* font, SDL_Color color)
+void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* font, SDL_Color color, Glyph_Map* glyphMap)
 {
-    SDL_Surface* surface = sdl_cp(TTF_RenderGlyph_Blended(font, c, color));
-    SDL_Texture* texture = sdl_cp(SDL_CreateTextureFromSurface(renderer, surface));
-    SDL_Rect fontRect = {
-        .x = 0,
-        .y = 0,
-        .w = surface->w,
-        .h = surface->h
-    };
+    //temp index
+    size_t index = (int)c - 32;
+    SDL_Rect fontRect = {.x = 0, .y = 0, .w = 0, .h = 0};
+    if(index > 127) {
+        index = 126;
+    }
+    copyRect_GS(glyphMap->glyphs[index], &fontRect);
     SDL_Rect destRect = {
         .x = pos->x,
         .y = pos->y,
-        .w = surface->w,
-        .h = surface->h
+        .w = fontRect.w,
+        .h = fontRect.h
     };
-    sdl_cc(SDL_RenderCopy(renderer, texture, &fontRect, &destRect));
-    pos->x += surface->w;
-    SDL_FreeSurface(surface);
+    sdl_cc(SDL_RenderCopy(renderer, font, &fontRect, &destRect));
+    pos->x += fontRect.w;
 }
 
-void renderText(SDL_Renderer* renderer, const char* text, size_t textSize, TTF_Font* font, SDL_Color color)
+void renderText(SDL_Renderer* renderer, const char* text, size_t textSize, SDL_Texture* font, SDL_Color color, Glyph_Map* glyphMap)
 {
     Vec2 pen = {
         .x = 0,
@@ -121,7 +118,7 @@ void renderText(SDL_Renderer* renderer, const char* text, size_t textSize, TTF_F
     };
 
     for (size_t i = 0; i < textSize; i++) {
-        renderChar(renderer, text[i], &pen, font, color);
+        renderChar(renderer, text[i], &pen, font, color, glyphMap);
     }
 }
 
@@ -135,6 +132,8 @@ int main(void)
     SDL_Renderer* renderer = sdl_cp(SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED));
     //White color in rgba
     SDL_Color color = { 255, 255, 255, 255 };
+    Glyph_Map* glyphMap = createGlyphMap();
+    SDL_Texture* fontTexture = cacheTexture(renderer, font, glyphMap);
 
     bool exit = false;
     char buffer[MAX_BUFFER_SIZE] = "";
@@ -173,10 +172,10 @@ int main(void)
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
-        //renderText(renderer, buffer, buffer_size, font, color);
-        cacheTexture(renderer, font);
+        renderText(renderer, buffer, buffer_size, fontTexture, color, glyphMap);
         SDL_RenderPresent(renderer);
     }
+    freeGlyphMap(glyphMap);
     TTF_CloseFont(font);
     SDL_Quit();
     return 0;
