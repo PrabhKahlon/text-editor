@@ -7,6 +7,8 @@
 
 #include "vec.h"
 
+#define MAX_BUFFER_SIZE 1024
+
 void sdl_cc(int code)
 {
     if (code < 0) {
@@ -57,14 +59,14 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, TTF_Font* font,
     SDL_FreeSurface(surface);
 }
 
-void renderText(SDL_Renderer* renderer, const char* text, TTF_Font* font, SDL_Color color)
+void renderText(SDL_Renderer* renderer, const char* text, size_t textSize, TTF_Font* font, SDL_Color color)
 {
     Vec2 pen = {
         .x = 0,
         .y = 0
     };
 
-    for (size_t i = 0; i < strlen(text); i++) {
+    for (size_t i = 0; i < textSize; i++) {
         renderChar(renderer, text[i], &pen, font, color);
     }
 }
@@ -81,20 +83,43 @@ int main(void)
     SDL_Color color = { 255, 255, 255, 255 };
 
     bool exit = false;
+    char buffer[MAX_BUFFER_SIZE] = "";
+    size_t buffer_size = 0;
 
     while (!exit) {
         SDL_Event event = { 0 };
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
-            case SDL_QUIT:
+            case SDL_QUIT: {
                 exit = true;
                 break;
+            }
+            case SDL_TEXTINPUT: {
+                size_t textSize = strlen(event.text.text);
+                const size_t freeSpace = MAX_BUFFER_SIZE - buffer_size;
+                if (textSize > freeSpace) {
+                    textSize = freeSpace;
+                }
+                memcpy(buffer + buffer_size, event.text.text, textSize);
+                buffer_size += textSize;
+                break;
+            }
+            case SDL_KEYDOWN: {
+                switch (event.key.keysym.sym) {
+                case SDLK_BACKSPACE:
+                    if (buffer_size > 0) {
+                        buffer_size -= 1;
+                    }
+                    break;
+                }
+                break;
+            }
             }
         }
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
-        renderText(renderer, "Hello World", font, color);
+        renderText(renderer, buffer, buffer_size, font, color);
         SDL_RenderPresent(renderer);
     }
 
