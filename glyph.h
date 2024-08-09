@@ -17,10 +17,12 @@ typedef struct {
 typedef struct {
     int maxGlyphs;
     Glyph_Rect** glyphs;
+    int glyphHeight;
 } Glyph_Map;
 
 Glyph_Map* createGlyphMap();
 void freeGlyphMap(Glyph_Map* glyphMap);
 void addGlyph(Glyph_Map* glyphMap, char c, SDL_Rect* glyph);
+void setGlyphHeight(Glyph_Map* glyphMap, int height);
 
 #endif // GLYPH_H_

@@ -13,6 +13,8 @@ Glyph_Map* createGlyphMap()
         glyphMap->glyphs[i] = NULL;
     }
 
+    glyphMap->glyphHeight = 0;
+
     return glyphMap;
 }
 
@@ -61,4 +63,9 @@ void addGlyph(Glyph_Map* glyphMap, char c, SDL_Rect* glyph)
         glyphMap->glyphs[mapIndex] = newGlyph;
     }
     return;
+}
+
+void setGlyphHeight(Glyph_Map* glyphMap, int height) 
+{
+    glyphMap->glyphHeight = height;
 }

@@ -58,11 +58,12 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
     }
     int maxWidth = height*12;
     int maxHeight = height*12;
+    glyphMap->glyphHeight = height;
 
     SDL_Surface* cacheSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, maxWidth, maxHeight, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
 
     //Create ASCII string to generate glyphs
-    char asciiString[95] = "";
+    char asciiString[96] = "";
     char c = 32;
     for(int i = 0; i < 95; i++) {
         asciiString[i] = c++;
@@ -95,6 +96,14 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
 {
     //temp index
     size_t index = (int)c - 32;
+    if(c < 32) {
+        if(c == 10) {
+            pos->y += glyphMap->glyphHeight;
+            pos->x = 0;
+            return;
+        }
+        return;
+    }
     SDL_Rect fontRect = {.x = 0, .y = 0, .w = 0, .h = 0};
     if(index > 127) {
         index = 126;
@@ -164,6 +173,11 @@ int main(void)
                         buffer_size -= 1;
                     }
                     break;
+                case SDLK_RETURN: {
+                    char* newLine = "\n";
+                    memcpy(buffer + buffer_size, newLine, strlen(newLine));
+                    buffer_size += strlen(newLine);
+                }
                 }
                 break;
             }
