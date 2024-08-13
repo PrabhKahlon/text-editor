@@ -14,5 +14,7 @@ GapBuffer* createBuffer();
 void freeBuffer(GapBuffer* gapBuffer);
 void insertBuffer(GapBuffer* gapBuffer, char* text, size_t textSize);
 void deleteBuffer(GapBuffer* gapBuffer);
+void cursorLeft(GapBuffer* gapBuffer);
+void cursorRight(GapBuffer* gapBuffer);
 
 #endif // GAP_H_

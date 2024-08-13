@@ -120,14 +120,15 @@ void renderCursor(SDL_Renderer* renderer, GapBuffer* text, Cursor* cursor, SDL_T
             destRect.x += glyphMap->glyphs[glyphIndex]->w;
         }
     }
-    // if (cursor->index < textSize) {
-    //     int glyph = text[cursor->index];
-    //     int index = glyph - 32;
-    //     if (glyph >= 32) {
-    //         destRect.w = glyphMap->glyphs[index]->w;
-    //         destRect.h = glyphMap->glyphs[index]->h;
-    //     }
-    // }
+    //Broken need to figure out if character is before gap or after gap
+    if (text->cursor) {
+        int glyph = text->string[text->cursor];
+        int index = glyph - 32;
+        if (glyph >= 32) {
+            destRect.w = glyphMap->glyphs[index]->w;
+            destRect.h = glyphMap->glyphs[index]->h;
+        }
+    }
 
     sdl_cc(SDL_RenderCopy(renderer, cursorTexture, NULL, &destRect));
 }
@@ -194,8 +195,6 @@ int main(void)
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
 
     bool exit = false;
-    //char buffer[MAX_BUFFER_SIZE] = "";
-    //size_t buffer_size = 0;
     GapBuffer* stringBuffer = createBuffer();
 
     Cursor cursor = { .index = 0, .pos = {.x = 0, .y = 0} };
@@ -210,13 +209,6 @@ int main(void)
             }
             case SDL_TEXTINPUT: {
                 size_t textSize = strlen(event.text.text);
-                // const size_t freeSpace = MAX_BUFFER_SIZE - stringBuffer.;
-                // if (textSize > freeSpace) {
-                //     textSize = freeSpace;
-                // }
-                // memcpy(buffer + buffer_size, event.text.text, textSize);
-                // buffer_size += textSize;
-                // cursor.index += textSize;
                 insertBuffer(stringBuffer, event.text.text, textSize);
                 break;
             }
@@ -234,23 +226,16 @@ int main(void)
                 case SDLK_RETURN: {
                     char* newLine = "\n";
                     insertBuffer(stringBuffer, newLine, strlen(newLine));
-                    //memcpy(buffer + buffer_size, newLine, strlen(newLine));
-                    //buffer_size += strlen(newLine);
-                    //cursor.index += strlen(newLine);
                     break;
                 }
-                // case SDLK_LEFT: {
-                //     if (cursor.index > 0) {
-                //         cursor.index -= 1;
-                //     }
-                //     break;
-                // }
-                // case SDLK_RIGHT: {
-                //     if (cursor.index < buffer_size) {
-                //         cursor.index += 1;
-                //     }
-                //     break;
-                // }
+                case SDLK_LEFT: {
+                    cursorLeft(stringBuffer);
+                    break;
+                }
+                case SDLK_RIGHT: {
+                    cursorRight(stringBuffer);
+                    break;
+                }
                 }
                 break;
             }

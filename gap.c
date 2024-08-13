@@ -51,15 +51,18 @@ void deleteBuffer(GapBuffer* gapBuffer)
     return;
 }
 
-// int main(void)
-// {
-//     //Test Buffer
-//     GapBuffer* buf = createBuffer();
-//     printf("%d\n", buf->cursor);
-//     printf("%d\n", buf->gapEnd);
-//     printf("%d\n", buf->length);
-//     memcpy(buf->string, "Hello World!", 13);
-//     printf("%s\n", buf->string);
-//     freeBuffer(buf);
-//     return 0;
-// }
+void cursorLeft(GapBuffer* gapBuffer)
+{
+    if(gapBuffer->cursor > 0) {
+        gapBuffer->string[--gapBuffer->gapEnd] = gapBuffer->string[--gapBuffer->cursor];
+    }
+    return;
+}
+
+void cursorRight(GapBuffer* gapBuffer)
+{
+    if(gapBuffer->gapEnd < gapBuffer->length) {
+        gapBuffer->string[gapBuffer->cursor++] = gapBuffer->string[gapBuffer->gapEnd++];
+    }
+    return;
+}
