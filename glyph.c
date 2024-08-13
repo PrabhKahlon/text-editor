@@ -20,8 +20,9 @@ Glyph_Map* createGlyphMap()
 
 void freeGlyphMap(Glyph_Map* glyphMap)
 {
-    if (glyphMap == NULL)
+    if (glyphMap == NULL) {
         return;
+    }
 
     for (int i = 0; i < glyphMap->maxGlyphs; ++i)
     {
@@ -65,7 +66,7 @@ void addGlyph(Glyph_Map* glyphMap, char c, SDL_Rect* glyph)
     return;
 }
 
-void setGlyphHeight(Glyph_Map* glyphMap, int height) 
+void setGlyphHeight(Glyph_Map* glyphMap, int height)
 {
     glyphMap->glyphHeight = height;
 }

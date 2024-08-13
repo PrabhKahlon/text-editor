@@ -7,6 +7,7 @@
 
 #include "vec.h"
 #include "glyph.h"
+#include "gap.h"
 
 #define MAX_BUFFER_SIZE 1024
 
@@ -99,7 +100,7 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
 }
 
 //Very basic cursor
-void renderCursor(SDL_Renderer* renderer, const char* text, size_t textSize, Cursor* cursor, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
+void renderCursor(SDL_Renderer* renderer, GapBuffer* text, Cursor* cursor, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
 {
     SDL_Rect destRect = {
         .x = 0,
@@ -108,8 +109,8 @@ void renderCursor(SDL_Renderer* renderer, const char* text, size_t textSize, Cur
         .h = glyphMap->glyphHeight
     };
 
-    for (size_t i = 0; i < cursor->index; i++) {
-        int glyph = text[i];
+    for (size_t i = 0; i < text->cursor; i++) {
+        int glyph = text->string[i];
         if (glyph == 10) {
             destRect.y += glyphMap->glyphHeight;
             destRect.x = 0;
@@ -119,14 +120,14 @@ void renderCursor(SDL_Renderer* renderer, const char* text, size_t textSize, Cur
             destRect.x += glyphMap->glyphs[glyphIndex]->w;
         }
     }
-    if (cursor->index < textSize) {
-        int glyph = text[cursor->index];
-        int index = glyph - 32;
-        if (glyph >= 32) {
-            destRect.w = glyphMap->glyphs[index]->w;
-            destRect.h = glyphMap->glyphs[index]->h;
-        }
-    }
+    // if (cursor->index < textSize) {
+    //     int glyph = text[cursor->index];
+    //     int index = glyph - 32;
+    //     if (glyph >= 32) {
+    //         destRect.w = glyphMap->glyphs[index]->w;
+    //         destRect.h = glyphMap->glyphs[index]->h;
+    //     }
+    // }
 
     sdl_cc(SDL_RenderCopy(renderer, cursorTexture, NULL, &destRect));
 }
@@ -159,18 +160,20 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
     pos->x += fontRect.w;
 }
 
-void renderText(SDL_Renderer* renderer, const char* text, size_t textSize, SDL_Texture* font, SDL_Texture* cursor, Cursor* curPos, SDL_Color color, Glyph_Map* glyphMap)
+void renderText(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* font, SDL_Texture* cursor, Cursor* curPos, SDL_Color color, Glyph_Map* glyphMap)
 {
     Vec2 pen = {
         .x = 0,
         .y = 0
     };
 
-    for (size_t i = 0; i < textSize; i++) {
-        renderChar(renderer, text[i], &pen, font, color, glyphMap);
+    for (size_t i = 0; i < text->cursor; i++) {
+        renderChar(renderer, text->string[i], &pen, font, color, glyphMap);
     }
-
-    renderCursor(renderer, text, textSize, curPos, cursor, glyphMap);
+    for (size_t i = text->gapEnd; i < text->length; i++) {
+        renderChar(renderer, text->string[i], &pen, font, color, glyphMap);
+    }
+    renderCursor(renderer, text, curPos, cursor, glyphMap);
 }
 
 int main(void)
@@ -191,8 +194,9 @@ int main(void)
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
 
     bool exit = false;
-    char buffer[MAX_BUFFER_SIZE] = "";
-    size_t buffer_size = 0;
+    //char buffer[MAX_BUFFER_SIZE] = "";
+    //size_t buffer_size = 0;
+    GapBuffer* stringBuffer = createBuffer();
 
     Cursor cursor = { .index = 0, .pos = {.x = 0, .y = 0} };
 
@@ -206,20 +210,21 @@ int main(void)
             }
             case SDL_TEXTINPUT: {
                 size_t textSize = strlen(event.text.text);
-                const size_t freeSpace = MAX_BUFFER_SIZE - buffer_size;
-                if (textSize > freeSpace) {
-                    textSize = freeSpace;
-                }
-                memcpy(buffer + buffer_size, event.text.text, textSize);
-                buffer_size += textSize;
-                cursor.index += textSize;
+                // const size_t freeSpace = MAX_BUFFER_SIZE - stringBuffer.;
+                // if (textSize > freeSpace) {
+                //     textSize = freeSpace;
+                // }
+                // memcpy(buffer + buffer_size, event.text.text, textSize);
+                // buffer_size += textSize;
+                // cursor.index += textSize;
+                insertBuffer(stringBuffer, event.text.text, textSize);
                 break;
             }
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
                 case SDLK_BACKSPACE: {
-                    if (buffer_size > 0) {
-                        buffer_size -= 1;
+                    if (stringBuffer->cursor > 0) {
+                        deleteBuffer(stringBuffer);
                         if (cursor.index > 0) {
                             cursor.index -= 1;
                         }
@@ -228,23 +233,24 @@ int main(void)
                 }
                 case SDLK_RETURN: {
                     char* newLine = "\n";
-                    memcpy(buffer + buffer_size, newLine, strlen(newLine));
-                    buffer_size += strlen(newLine);
-                    cursor.index += strlen(newLine);
+                    insertBuffer(stringBuffer, newLine, strlen(newLine));
+                    //memcpy(buffer + buffer_size, newLine, strlen(newLine));
+                    //buffer_size += strlen(newLine);
+                    //cursor.index += strlen(newLine);
                     break;
                 }
-                case SDLK_LEFT: {
-                    if (cursor.index > 0) {
-                        cursor.index -= 1;
-                    }
-                    break;
-                }
-                case SDLK_RIGHT: {
-                    if (cursor.index < buffer_size) {
-                        cursor.index += 1;
-                    }
-                    break;
-                }
+                // case SDLK_LEFT: {
+                //     if (cursor.index > 0) {
+                //         cursor.index -= 1;
+                //     }
+                //     break;
+                // }
+                // case SDLK_RIGHT: {
+                //     if (cursor.index < buffer_size) {
+                //         cursor.index += 1;
+                //     }
+                //     break;
+                // }
                 }
                 break;
             }
@@ -253,7 +259,7 @@ int main(void)
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
-        renderText(renderer, buffer, buffer_size, fontTexture, cursorTexture, &cursor, color, glyphMap);
+        renderText(renderer, stringBuffer, fontTexture, cursorTexture, &cursor, color, glyphMap);
         SDL_RenderPresent(renderer);
     }
     freeGlyphMap(glyphMap);
