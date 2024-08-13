@@ -120,14 +120,17 @@ void renderCursor(SDL_Renderer* renderer, GapBuffer* text, Cursor* cursor, SDL_T
             destRect.x += glyphMap->glyphs[glyphIndex]->w;
         }
     }
-    //Broken need to figure out if character is before gap or after gap
-    if (text->cursor) {
-        int glyph = text->string[text->cursor];
-        int index = glyph - 32;
-        if (glyph >= 32) {
-            destRect.w = glyphMap->glyphs[index]->w;
-            destRect.h = glyphMap->glyphs[index]->h;
-        }
+    int glyph = 0;
+    if (text->gapEnd == text->length) {
+        glyph = text->string[text->cursor];
+    }
+    else {
+        glyph = text->string[text->gapEnd];
+    }
+    int index = glyph - 32;
+    if (glyph >= 32) {
+        destRect.w = glyphMap->glyphs[index]->w;
+        destRect.h = glyphMap->glyphs[index]->h;
     }
 
     sdl_cc(SDL_RenderCopy(renderer, cursorTexture, NULL, &destRect));
