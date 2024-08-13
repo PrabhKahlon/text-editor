@@ -104,19 +104,27 @@ void renderCursor(SDL_Renderer* renderer, const char* text, size_t textSize, Cur
     SDL_Rect destRect = {
         .x = 0,
         .y = 0,
-        .w = 16,
-        .h = 40
+        .w = glyphMap->glyphHeight / 2,
+        .h = glyphMap->glyphHeight
     };
 
     for (size_t i = 0; i < cursor->index; i++) {
         int glyph = text[i];
-        if(glyph == 10) {
+        if (glyph == 10) {
             destRect.y += glyphMap->glyphHeight;
             destRect.x = 0;
         }
         if (glyph >= 32) {
             int glyphIndex = glyph - 32;
             destRect.x += glyphMap->glyphs[glyphIndex]->w;
+        }
+    }
+    if (cursor->index < textSize) {
+        int glyph = text[cursor->index];
+        int index = glyph - 32;
+        if (glyph >= 32) {
+            destRect.w = glyphMap->glyphs[index]->w;
+            destRect.h = glyphMap->glyphs[index]->h;
         }
     }
 
@@ -177,7 +185,9 @@ int main(void)
     SDL_Color color = { 255, 255, 255, 255 };
     Glyph_Map* glyphMap = createGlyphMap();
     SDL_Texture* fontTexture = cacheTexture(renderer, font, glyphMap);
-    SDL_Surface* cursorSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, 8, 8, 8, 0x00000000, 0x00000000, 0x00000000, 0x00000000));
+    SDL_Surface* cursorSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, 8, 8, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
+    //Make the cursor transparent.
+    sdl_cc(SDL_FillRect(cursorSurface, NULL, 0xAAFFFFFF));
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
 
     bool exit = false;
@@ -207,17 +217,33 @@ int main(void)
             }
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
-                case SDLK_BACKSPACE:
+                case SDLK_BACKSPACE: {
                     if (buffer_size > 0) {
                         buffer_size -= 1;
-                        cursor.index -= 1;
+                        if (cursor.index > 0) {
+                            cursor.index -= 1;
+                        }
                     }
                     break;
+                }
                 case SDLK_RETURN: {
                     char* newLine = "\n";
                     memcpy(buffer + buffer_size, newLine, strlen(newLine));
                     buffer_size += strlen(newLine);
                     cursor.index += strlen(newLine);
+                    break;
+                }
+                case SDLK_LEFT: {
+                    if (cursor.index > 0) {
+                        cursor.index -= 1;
+                    }
+                    break;
+                }
+                case SDLK_RIGHT: {
+                    if (cursor.index < buffer_size) {
+                        cursor.index += 1;
+                    }
+                    break;
                 }
                 }
                 break;
