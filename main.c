@@ -71,7 +71,7 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
     SDL_Surface* cacheSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, maxWidth, maxHeight, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
 
     //Create ASCII string to generate glyphs
-    char asciiString[96] = "";
+    char asciiString[95] = "";
     char c = 32;
     for (int i = 0; i < 95; i++) {
         asciiString[i] = c++;
@@ -100,7 +100,7 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
 }
 
 //Very basic cursor
-void renderCursor(SDL_Renderer* renderer, GapBuffer* text, Cursor* cursor, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
+void renderCursor(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
 {
     SDL_Rect destRect = {
         .x = 0,
@@ -115,22 +115,19 @@ void renderCursor(SDL_Renderer* renderer, GapBuffer* text, Cursor* cursor, SDL_T
             destRect.y += glyphMap->glyphHeight;
             destRect.x = 0;
         }
-        if (glyph >= 32) {
+        if (glyph >= 32 && glyph <= 126) {
             int glyphIndex = glyph - 32;
             destRect.x += glyphMap->glyphs[glyphIndex]->w;
         }
     }
     int glyph = 0;
-    if (text->gapEnd == text->length) {
-        glyph = text->string[text->cursor];
-    }
-    else {
+    if (text->gapEnd != text->length) {
         glyph = text->string[text->gapEnd];
-    }
-    int index = glyph - 32;
-    if (glyph >= 32) {
-        destRect.w = glyphMap->glyphs[index]->w;
-        destRect.h = glyphMap->glyphs[index]->h;
+        int index = glyph - 32;
+        if (glyph >= 32 && glyph <= 126) {
+            destRect.w = glyphMap->glyphs[index]->w;
+            destRect.h = glyphMap->glyphs[index]->h;
+        }
     }
 
     sdl_cc(SDL_RenderCopy(renderer, cursorTexture, NULL, &destRect));
@@ -150,7 +147,7 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
         return;
     }
     SDL_Rect fontRect = { .x = 0, .y = 0, .w = 0, .h = 0 };
-    if (index > 127) {
+    if (index >= 127) {
         index = 126;
     }
     copyRect_GS(glyphMap->glyphs[index], &fontRect);
@@ -164,7 +161,7 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
     pos->x += fontRect.w;
 }
 
-void renderText(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* font, SDL_Texture* cursor, Cursor* curPos, SDL_Color color, Glyph_Map* glyphMap)
+void renderText(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* font, SDL_Texture* cursor, SDL_Color color, Glyph_Map* glyphMap)
 {
     Vec2 pen = {
         .x = 0,
@@ -177,7 +174,7 @@ void renderText(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* font, SDL_
     for (size_t i = text->gapEnd; i < text->length; i++) {
         renderChar(renderer, text->string[i], &pen, font, color, glyphMap);
     }
-    renderCursor(renderer, text, curPos, cursor, glyphMap);
+    renderCursor(renderer, text, cursor, glyphMap);
 }
 
 int main(void)
@@ -200,8 +197,6 @@ int main(void)
     bool exit = false;
     GapBuffer* stringBuffer = createBuffer();
 
-    Cursor cursor = { .index = 0, .pos = {.x = 0, .y = 0} };
-
     while (!exit) {
         SDL_Event event = { 0 };
         while (SDL_PollEvent(&event)) {
@@ -220,9 +215,6 @@ int main(void)
                 case SDLK_BACKSPACE: {
                     if (stringBuffer->cursor > 0) {
                         deleteBuffer(stringBuffer);
-                        if (cursor.index > 0) {
-                            cursor.index -= 1;
-                        }
                     }
                     break;
                 }
@@ -247,7 +239,7 @@ int main(void)
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
-        renderText(renderer, stringBuffer, fontTexture, cursorTexture, &cursor, color, glyphMap);
+        renderText(renderer, stringBuffer, fontTexture, cursorTexture, color, glyphMap);
         SDL_RenderPresent(renderer);
     }
     freeGlyphMap(glyphMap);
