@@ -214,7 +214,7 @@ int main(void)
                 switch (event.key.keysym.sym) {
                 case SDLK_BACKSPACE: {
                     if (stringBuffer->cursor > 0) {
-                        deleteBuffer(stringBuffer);
+                        deleteFromBuffer(stringBuffer);
                     }
                     break;
                 }

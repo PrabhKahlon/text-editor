@@ -27,6 +27,24 @@ void freeBuffer(GapBuffer* gapBuffer)
     free(gapBuffer);
 }
 
+void expandBuffer(GapBuffer* gapBuffer) 
+{
+    if(gapBuffer == NULL) {
+        return;
+    }
+    //Get new length for buffer and allocate memory. For now we just double the length.
+    size_t oldLength = gapBuffer->length;
+    size_t newLength = oldLength*2; // Add size check so it does not overflow
+    char* newString = (char*)realloc(gapBuffer->string, sizeof(char)*newLength);
+    //Need to copy everything after the gap till the end.
+    size_t afterGapText = gapBuffer->length - gapBuffer->gapEnd;
+    memmove(newString + newLength - afterGapText, gapBuffer->string + gapBuffer->gapEnd, afterGapText);
+    gapBuffer->string = newString;
+    gapBuffer->gapEnd = newLength - afterGapText;
+    gapBuffer->length = newLength;
+    return;
+}
+
 void insertBuffer(GapBuffer* gapBuffer, char* text, size_t textSize)
 {
     if (gapBuffer == NULL) {
@@ -35,15 +53,15 @@ void insertBuffer(GapBuffer* gapBuffer, char* text, size_t textSize)
     //Check if gap is used and if there is space, insert into gap
     for (size_t i = 0; i < textSize; i++) {
         if (gapBuffer->cursor == gapBuffer->gapEnd) {
-            //GAP IS ALL USED UP
-            //TODO: EXPAND BUFFER
+            expandBuffer(gapBuffer);
         }
         gapBuffer->string[gapBuffer->cursor++] = text[i];
+        printf("%s\n", gapBuffer->string);
     }
     return;
 }
 
-void deleteBuffer(GapBuffer* gapBuffer)
+void deleteFromBuffer(GapBuffer* gapBuffer)
 {
     if (gapBuffer->cursor > 0) {
         gapBuffer->cursor--;
