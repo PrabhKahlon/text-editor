@@ -27,15 +27,15 @@ void freeBuffer(GapBuffer* gapBuffer)
     free(gapBuffer);
 }
 
-void expandBuffer(GapBuffer* gapBuffer) 
+void expandBuffer(GapBuffer* gapBuffer)
 {
-    if(gapBuffer == NULL) {
+    if (gapBuffer == NULL) {
         return;
     }
     //Get new length for buffer and allocate memory. For now we just double the length.
     size_t oldLength = gapBuffer->length;
-    size_t newLength = oldLength*2; // Add size check so it does not overflow
-    char* newString = (char*)realloc(gapBuffer->string, sizeof(char)*newLength);
+    size_t newLength = oldLength * 2; // Add size check so it does not overflow
+    char* newString = (char*)realloc(gapBuffer->string, sizeof(char) * newLength);
     //Need to copy everything after the gap till the end.
     size_t afterGapText = gapBuffer->length - gapBuffer->gapEnd;
     memmove(newString + newLength - afterGapText, gapBuffer->string + gapBuffer->gapEnd, afterGapText);
@@ -70,7 +70,7 @@ void deleteFromBuffer(GapBuffer* gapBuffer)
 
 void cursorLeft(GapBuffer* gapBuffer)
 {
-    if(gapBuffer->cursor > 0) {
+    if (gapBuffer->cursor > 0) {
         gapBuffer->string[--gapBuffer->gapEnd] = gapBuffer->string[--gapBuffer->cursor];
     }
     return;
@@ -78,7 +78,7 @@ void cursorLeft(GapBuffer* gapBuffer)
 
 void cursorRight(GapBuffer* gapBuffer)
 {
-    if(gapBuffer->gapEnd < gapBuffer->length) {
+    if (gapBuffer->gapEnd < gapBuffer->length) {
         gapBuffer->string[gapBuffer->cursor++] = gapBuffer->string[gapBuffer->gapEnd++];
     }
     return;
@@ -87,22 +87,31 @@ void cursorRight(GapBuffer* gapBuffer)
 void moveCursor(GapBuffer* gapBuffer, size_t position)
 {
     //Check that the position is not invalid
-    if(position > (gapBuffer->cursor + gapBuffer->length - gapBuffer->gapEnd)) {
+    if (position > (gapBuffer->cursor + gapBuffer->length - gapBuffer->gapEnd)) {
         return;
     }
     //Move cursor right or left to get to correct position
-    if(position > gapBuffer->cursor) {
+    if (position > gapBuffer->cursor) {
         size_t positionsToMove = (position - gapBuffer->cursor);
-        for(size_t i = 0; i < positionsToMove; i++) {
+        for (size_t i = 0; i < positionsToMove; i++) {
             cursorRight(gapBuffer);
         }
-    } else {
+    }
+    else {
         size_t positionsToMove = (gapBuffer->cursor - position);
-        for(size_t i = 0; i < positionsToMove; i++) {
+        for (size_t i = 0; i < positionsToMove; i++) {
             cursorLeft(gapBuffer);
         }
     }
     return;
+}
+
+//Moves the cursor of the gap buffer to the end. Returns end index.
+size_t moveCursorToEnd(GapBuffer* gapBuffer)
+{
+    size_t newIndex = (gapBuffer->cursor + gapBuffer->length) - gapBuffer->gapEnd;
+    moveCursor(gapBuffer, newIndex);
+    return newIndex;
 }
 
 // Copies everything from the src buffer after the cursor to the new buffer where the cursor is.

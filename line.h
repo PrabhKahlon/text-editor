@@ -12,6 +12,7 @@ typedef struct {
 Text* createText();
 void freeText(Text* lines);
 void createNewLine(Text* text, size_t index, size_t linePos);
+void deleteLine(Text* text, size_t lineNum, size_t linePos);
 void insertOnLine(Text* text, int line, char* string, size_t stringLength);
 void deleteFromLine(Text* text, int line);
 

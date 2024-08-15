@@ -149,8 +149,8 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
         return;
     }
     SDL_Rect fontRect = { .x = 0, .y = 0, .w = 0, .h = 0 };
-    if (index >= 127) {
-        index = 126;
+    if (index >= 95) {
+        index = 94;
     }
     copyRect_GS(glyphMap->glyphs[index], &fontRect);
     SDL_Rect destRect = {
@@ -227,9 +227,17 @@ int main(void)
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
                 case SDLK_BACKSPACE: {
-                    deleteFromLine(text, cursor.line);
                     if (cursor.index > 0) {
                         cursor.index--;
+                        deleteFromLine(text, cursor.line);
+                    }
+                    else {
+                        if (cursor.line > 0) {
+                            //Delete line
+                            deleteLine(text, cursor.line, cursor.index);
+                            cursor.line--;
+                            cursor.index = moveCursorToEnd(text->lines[cursor.line]);
+                        }
                     }
                     break;
                 }
@@ -248,9 +256,7 @@ int main(void)
                     else {
                         if (cursor.line > 0) {
                             cursor.line--;
-                            size_t newIndex = text->lines[cursor.line]->cursor + text->lines[cursor.line]->length - text->lines[cursor.line]->gapEnd;
-                            cursor.index = newIndex;
-                            moveCursor(text->lines[cursor.line], cursor.index);
+                            cursor.index = moveCursorToEnd(text->lines[cursor.line]);
                         }
                     }
                     break;
@@ -272,18 +278,14 @@ int main(void)
                 case SDLK_UP: {
                     if (cursor.line > 0) {
                         cursor.line--;
-                        size_t newIndex = (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd;
-                        cursor.index = newIndex;
-                        moveCursor(text->lines[cursor.line], cursor.index);
+                        cursor.index = moveCursorToEnd(text->lines[cursor.line]);
                     }
                     break;
                 }
                 case SDLK_DOWN: {
                     if (cursor.line < text->lineCount - 1) {
                         cursor.line++;
-                        size_t newIndex = (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd;
-                        cursor.index = newIndex;
-                        moveCursor(text->lines[cursor.line], cursor.index);
+                        cursor.index = moveCursorToEnd(text->lines[cursor.line]);
                     }
                     break;
                 }

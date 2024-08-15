@@ -18,6 +18,7 @@ void deleteFromBuffer(GapBuffer* gapBuffer);
 void cursorLeft(GapBuffer* gapBuffer);
 void cursorRight(GapBuffer* gapBuffer);
 void moveCursor(GapBuffer* gapBuffer, size_t position);
+size_t moveCursorToEnd(GapBuffer* gapBuffer);
 void copyBuffer(GapBuffer* dest, GapBuffer* src);
 
 #endif // GAP_H_
