@@ -84,10 +84,15 @@ void cursorRight(GapBuffer* gapBuffer)
     return;
 }
 
+size_t gapUsed(GapBuffer* gapBuffer)
+{
+    return (gapBuffer->cursor + gapBuffer->length) - gapBuffer->gapEnd;
+}
+
 void moveCursor(GapBuffer* gapBuffer, size_t position)
 {
     //Check that the position is not invalid
-    if (position > (gapBuffer->cursor + gapBuffer->length - gapBuffer->gapEnd)) {
+    if (position > gapUsed(gapBuffer)) {
         return;
     }
     //Move cursor right or left to get to correct position
@@ -109,7 +114,7 @@ void moveCursor(GapBuffer* gapBuffer, size_t position)
 //Moves the cursor of the gap buffer to the end. Returns end index.
 size_t moveCursorToEnd(GapBuffer* gapBuffer)
 {
-    size_t newIndex = (gapBuffer->cursor + gapBuffer->length) - gapBuffer->gapEnd;
+    size_t newIndex = gapUsed(gapBuffer);
     moveCursor(gapBuffer, newIndex);
     return newIndex;
 }

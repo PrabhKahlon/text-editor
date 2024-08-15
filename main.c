@@ -278,14 +278,24 @@ int main(void)
                 case SDLK_UP: {
                     if (cursor.line > 0) {
                         cursor.line--;
-                        cursor.index = moveCursorToEnd(text->lines[cursor.line]);
+                        //No index memory. Doing it the notepad way for now.
+                        if(cursor.index > gapUsed(text->lines[cursor.line])) {
+                            cursor.index = moveCursorToEnd(text->lines[cursor.line]);
+                        } else {
+                            moveCursor(text->lines[cursor.line], cursor.index);
+                        }
                     }
                     break;
                 }
                 case SDLK_DOWN: {
                     if (cursor.line < text->lineCount - 1) {
                         cursor.line++;
-                        cursor.index = moveCursorToEnd(text->lines[cursor.line]);
+                        //No index memory. Doing it the notepad way for now.
+                        if(cursor.index > gapUsed(text->lines[cursor.line])) {
+                            cursor.index = moveCursorToEnd(text->lines[cursor.line]);
+                        } else {
+                            moveCursor(text->lines[cursor.line], cursor.index);
+                        }
                     }
                     break;
                 }
