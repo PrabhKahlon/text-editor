@@ -234,9 +234,10 @@ int main(void)
                     break;
                 }
                 case SDLK_RETURN: {
-                    createNewLine(text);
                     cursor.line++;
+                    createNewLine(text, cursor.line, cursor.index);
                     cursor.index = 0;
+                    moveCursor(text->lines[cursor.line], cursor.index);
                     break;
                 }
                 case SDLK_LEFT: {
@@ -255,7 +256,7 @@ int main(void)
                     break;
                 }
                 case SDLK_RIGHT: {
-                    if (text->lines[cursor.line]->gapEnd < text->lines[cursor.line]->length) {
+                    if (cursor.index < (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd) {
                         cursorRight(text->lines[cursor.line]);
                         cursor.index++;
                     }
@@ -271,7 +272,7 @@ int main(void)
                 case SDLK_UP: {
                     if (cursor.line > 0) {
                         cursor.line--;
-                        size_t newIndex = text->lines[cursor.line]->cursor + text->lines[cursor.line]->length - text->lines[cursor.line]->gapEnd;
+                        size_t newIndex = (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd;
                         cursor.index = newIndex;
                         moveCursor(text->lines[cursor.line], cursor.index);
                     }
@@ -280,7 +281,8 @@ int main(void)
                 case SDLK_DOWN: {
                     if (cursor.line < text->lineCount - 1) {
                         cursor.line++;
-                        cursor.index = 0;
+                        size_t newIndex = (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd;
+                        cursor.index = newIndex;
                         moveCursor(text->lines[cursor.line], cursor.index);
                     }
                     break;

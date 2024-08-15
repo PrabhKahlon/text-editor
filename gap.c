@@ -90,15 +90,26 @@ void moveCursor(GapBuffer* gapBuffer, size_t position)
     if(position > (gapBuffer->cursor + gapBuffer->length - gapBuffer->gapEnd)) {
         return;
     }
-    //Move cursor right to get to correct position
+    //Move cursor right or left to get to correct position
     if(position > gapBuffer->cursor) {
-        for(size_t i = 0; i < position - gapBuffer->cursor; i++) {
+        size_t positionsToMove = (position - gapBuffer->cursor);
+        for(size_t i = 0; i < positionsToMove; i++) {
             cursorRight(gapBuffer);
         }
     } else {
-        for(size_t i = 0; i < gapBuffer->cursor - position; i++) {
+        size_t positionsToMove = (gapBuffer->cursor - position);
+        for(size_t i = 0; i < positionsToMove; i++) {
             cursorLeft(gapBuffer);
         }
     }
+    return;
+}
+
+// Copies everything from the src buffer after the cursor to the new buffer where the cursor is.
+void copyBuffer(GapBuffer* dest, GapBuffer* src)
+{
+    char* copy = src->string + src->gapEnd;
+    size_t copySize = src->length - src->gapEnd;
+    insertBuffer(dest, copy, copySize);
     return;
 }
