@@ -4,7 +4,7 @@
 #include "gap.h"
 
 typedef struct {
-    int lineCount;
+    size_t lineCount;
     GapBuffer** lines;
 } Text;
 

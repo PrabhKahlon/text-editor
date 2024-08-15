@@ -101,11 +101,11 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
 }
 
 //Very basic cursor
-void renderCursor(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
+void renderCursor(SDL_Renderer* renderer, Cursor* cursor, GapBuffer* text, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
 {
     SDL_Rect destRect = {
         .x = 0,
-        .y = 0,
+        .y = cursor->line * glyphMap->glyphHeight,
         .w = glyphMap->glyphHeight / 2,
         .h = glyphMap->glyphHeight
     };
@@ -113,8 +113,9 @@ void renderCursor(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* cursorTe
     for (size_t i = 0; i < text->cursor; i++) {
         int glyph = text->string[i];
         if (glyph == 10) {
-            destRect.y += glyphMap->glyphHeight;
-            destRect.x = 0;
+            // destRect.y += glyphMap->glyphHeight;
+            // destRect.x = 0;
+            return;
         }
         if (glyph >= 32 && glyph <= 126) {
             int glyphIndex = glyph - 32;
@@ -141,8 +142,8 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
     size_t index = (int)c - 32;
     if (c < 32) {
         if (c == 10) {
-            pos->y += glyphMap->glyphHeight;
-            pos->x = 0;
+            //pos->y += glyphMap->glyphHeight;
+            //pos->x = 0;
             return;
         }
         return;
@@ -162,20 +163,29 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
     pos->x += fontRect.w;
 }
 
-void renderText(SDL_Renderer* renderer, GapBuffer* text, SDL_Texture* font, SDL_Texture* cursor, SDL_Color color, Glyph_Map* glyphMap)
+void renderLine(SDL_Renderer* renderer, Vec2* linePos, GapBuffer* line, SDL_Texture* font, SDL_Texture* cursor, SDL_Color color, Glyph_Map* glyphMap)
+{
+    for (size_t i = 0; i < line->cursor; i++) {
+        renderChar(renderer, line->string[i], linePos, font, color, glyphMap);
+    }
+    for (size_t i = line->gapEnd; i < line->length; i++) {
+        renderChar(renderer, line->string[i], linePos, font, color, glyphMap);
+    }
+}
+
+void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture* fontTexture, SDL_Texture* cursorTexture, SDL_Color color, Glyph_Map* glyphMap)
 {
     Vec2 pen = {
         .x = 0,
         .y = 0
     };
 
-    for (size_t i = 0; i < text->cursor; i++) {
-        renderChar(renderer, text->string[i], &pen, font, color, glyphMap);
+    for (size_t i = 0; i < text->lineCount; i++) {
+        renderLine(renderer, &pen, text->lines[i], fontTexture, cursorTexture, color, glyphMap);
+        pen.y += glyphMap->glyphHeight;
+        pen.x = 0;
     }
-    for (size_t i = text->gapEnd; i < text->length; i++) {
-        renderChar(renderer, text->string[i], &pen, font, color, glyphMap);
-    }
-    renderCursor(renderer, text, cursor, glyphMap);
+    renderCursor(renderer, cursor, text->lines[cursor->line], cursorTexture, glyphMap);
 }
 
 int main(void)
@@ -194,7 +204,7 @@ int main(void)
     //Make the cursor transparent.
     sdl_cc(SDL_FillRect(cursorSurface, NULL, 0xAAFFFFFF));
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
-    Cursor cursor = {.line = 0, .index = 0};
+    Cursor cursor = { .line = 0, .index = 0 };
 
 
     Text* text = createText();
@@ -210,29 +220,63 @@ int main(void)
             }
             case SDL_TEXTINPUT: {
                 size_t textSize = strlen(event.text.text);
-                insertOnLine(text, cursor.line,event.text.text, textSize);
+                insertOnLine(text, cursor.line, event.text.text, textSize);
+                cursor.index += textSize;
                 break;
             }
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
                 case SDLK_BACKSPACE: {
-                    // if (stringBuffer->cursor > 0) {
-                    //     deleteFromBuffer(stringBuffer);
-                    // }
                     deleteFromLine(text, cursor.line);
+                    if (cursor.index > 0) {
+                        cursor.index--;
+                    }
                     break;
                 }
                 case SDLK_RETURN: {
-                    //char* newLine = "\n";
-                    //insertBuffer(stringBuffer, newLine, strlen(newLine));
+                    createNewLine(text);
+                    cursor.line++;
+                    cursor.index = 0;
                     break;
                 }
                 case SDLK_LEFT: {
-                    //cursorLeft(stringBuffer);
+                    if (cursor.index > 0) {
+                        cursorLeft(text->lines[cursor.line]);
+                        cursor.index--;
+                    }
+                    else {
+                        if (cursor.line > 0) {
+                            cursor.line--;
+                            cursor.index = text->lines[cursor.line]->cursor;
+                        }
+                    }
                     break;
                 }
                 case SDLK_RIGHT: {
-                    //cursorRight(stringBuffer);
+                    if (text->lines[cursor.line]->gapEnd < text->lines[cursor.line]->length) {
+                        cursorRight(text->lines[cursor.line]);
+                        cursor.index++;
+                    }
+                    else {
+                        if (cursor.line < text->lineCount - 1) {
+                            cursor.line++;
+                            cursor.index = text->lines[cursor.line]->cursor;
+                        }
+                    }
+                    break;
+                }
+                case SDLK_UP: {
+                    if (cursor.line > 0) {
+                        cursor.line--;
+                        cursor.index = text->lines[cursor.line]->cursor;
+                    }
+                    break;
+                }
+                case SDLK_DOWN: {
+                    if (cursor.line < text->lineCount - 1) {
+                        cursor.line++;
+                        cursor.index = text->lines[cursor.line]->cursor;
+                    }
                     break;
                 }
                 }
@@ -244,7 +288,7 @@ int main(void)
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
         //This will be the render line function and will be wrapped later.
-        renderText(renderer, text->lines[cursor.line], fontTexture, cursorTexture, color, glyphMap);
+        renderText(renderer, text, &cursor, fontTexture, cursorTexture, color, glyphMap);
         SDL_RenderPresent(renderer);
     }
     freeText(text);

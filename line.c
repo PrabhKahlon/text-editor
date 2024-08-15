@@ -1,21 +1,21 @@
 #include "line.h"
 
-#define MIN_LINES 1
+#define MIN_LINES 100
 
 Text* createText()
 {
     Text* text = (Text*)malloc(sizeof(Text));
     text->lines = (GapBuffer**)malloc(sizeof(GapBuffer*) * MIN_LINES);
-    for(int i = 0; i < MIN_LINES; i++) {
+    for(size_t i = 0; i < MIN_LINES; i++) {
         text->lines[i] = createBuffer();
     }
-    text->lineCount = MIN_LINES;
+    text->lineCount = 1;
     return text;
 }
 
 void freeText(Text* text)
 {
-    for(int i = 0; i < text->lineCount; i++) {
+    for(size_t i = 0; i < text->lineCount; i++) {
         freeBuffer(text->lines[i]);
     }
     free(text);
@@ -24,7 +24,8 @@ void freeText(Text* text)
 void createNewLine(Text* text)
 {
     text->lineCount++;
-    text->lines = (GapBuffer**)realloc(text, sizeof(GapBuffer*) * text->lineCount);
+    //text->lines = (GapBuffer**)realloc(text, sizeof(GapBuffer*) * text->lineCount);
+    //text->lines[text->lineCount-1] = createBuffer();
     return;
 }
 
