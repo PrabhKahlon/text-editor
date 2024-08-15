@@ -17,5 +17,6 @@ void insertBuffer(GapBuffer* gapBuffer, char* text, size_t textSize);
 void deleteFromBuffer(GapBuffer* gapBuffer);
 void cursorLeft(GapBuffer* gapBuffer);
 void cursorRight(GapBuffer* gapBuffer);
+void moveCursor(GapBuffer* gapBuffer, size_t position);
 
 #endif // GAP_H_

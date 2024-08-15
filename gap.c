@@ -83,3 +83,22 @@ void cursorRight(GapBuffer* gapBuffer)
     }
     return;
 }
+
+void moveCursor(GapBuffer* gapBuffer, size_t position)
+{
+    //Check that the position is not invalid
+    if(position > (gapBuffer->cursor + gapBuffer->length - gapBuffer->gapEnd)) {
+        return;
+    }
+    //Move cursor right to get to correct position
+    if(position > gapBuffer->cursor) {
+        for(size_t i = 0; i < position - gapBuffer->cursor; i++) {
+            cursorRight(gapBuffer);
+        }
+    } else {
+        for(size_t i = 0; i < gapBuffer->cursor - position; i++) {
+            cursorLeft(gapBuffer);
+        }
+    }
+    return;
+}

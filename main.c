@@ -247,7 +247,9 @@ int main(void)
                     else {
                         if (cursor.line > 0) {
                             cursor.line--;
-                            cursor.index = text->lines[cursor.line]->cursor;
+                            size_t newIndex = text->lines[cursor.line]->cursor + text->lines[cursor.line]->length - text->lines[cursor.line]->gapEnd;
+                            cursor.index = newIndex;
+                            moveCursor(text->lines[cursor.line], cursor.index);
                         }
                     }
                     break;
@@ -260,7 +262,8 @@ int main(void)
                     else {
                         if (cursor.line < text->lineCount - 1) {
                             cursor.line++;
-                            cursor.index = text->lines[cursor.line]->cursor;
+                            cursor.index = 0;
+                            moveCursor(text->lines[cursor.line], cursor.index);
                         }
                     }
                     break;
@@ -268,14 +271,17 @@ int main(void)
                 case SDLK_UP: {
                     if (cursor.line > 0) {
                         cursor.line--;
-                        cursor.index = text->lines[cursor.line]->cursor;
+                        size_t newIndex = text->lines[cursor.line]->cursor + text->lines[cursor.line]->length - text->lines[cursor.line]->gapEnd;
+                        cursor.index = newIndex;
+                        moveCursor(text->lines[cursor.line], cursor.index);
                     }
                     break;
                 }
                 case SDLK_DOWN: {
                     if (cursor.line < text->lineCount - 1) {
                         cursor.line++;
-                        cursor.index = text->lines[cursor.line]->cursor;
+                        cursor.index = 0;
+                        moveCursor(text->lines[cursor.line], cursor.index);
                     }
                     break;
                 }
@@ -287,7 +293,6 @@ int main(void)
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
-        //This will be the render line function and will be wrapped later.
         renderText(renderer, text, &cursor, fontTexture, cursorTexture, color, glyphMap);
         SDL_RenderPresent(renderer);
     }
