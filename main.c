@@ -8,13 +8,14 @@
 #include "vec.h"
 #include "glyph.h"
 #include "gap.h"
+#include "line.h"
 
 #define MAX_BUFFER_SIZE 1024
 
 typedef struct {
     size_t line;
     size_t index;
-    Vec2 pos;
+    //Vec2 pos;
 } Cursor;
 
 void sdl_cc(int code)
@@ -193,9 +194,11 @@ int main(void)
     //Make the cursor transparent.
     sdl_cc(SDL_FillRect(cursorSurface, NULL, 0xAAFFFFFF));
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
+    Cursor cursor = {.line = 0, .index = 0};
 
+
+    Text* text = createText();
     bool exit = false;
-    GapBuffer* stringBuffer = createBuffer();
 
     while (!exit) {
         SDL_Event event = { 0 };
@@ -207,28 +210,29 @@ int main(void)
             }
             case SDL_TEXTINPUT: {
                 size_t textSize = strlen(event.text.text);
-                insertBuffer(stringBuffer, event.text.text, textSize);
+                insertOnLine(text, cursor.line,event.text.text, textSize);
                 break;
             }
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
                 case SDLK_BACKSPACE: {
-                    if (stringBuffer->cursor > 0) {
-                        deleteFromBuffer(stringBuffer);
-                    }
+                    // if (stringBuffer->cursor > 0) {
+                    //     deleteFromBuffer(stringBuffer);
+                    // }
+                    deleteFromLine(text, cursor.line);
                     break;
                 }
                 case SDLK_RETURN: {
-                    char* newLine = "\n";
-                    insertBuffer(stringBuffer, newLine, strlen(newLine));
+                    //char* newLine = "\n";
+                    //insertBuffer(stringBuffer, newLine, strlen(newLine));
                     break;
                 }
                 case SDLK_LEFT: {
-                    cursorLeft(stringBuffer);
+                    //cursorLeft(stringBuffer);
                     break;
                 }
                 case SDLK_RIGHT: {
-                    cursorRight(stringBuffer);
+                    //cursorRight(stringBuffer);
                     break;
                 }
                 }
@@ -239,9 +243,11 @@ int main(void)
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
-        renderText(renderer, stringBuffer, fontTexture, cursorTexture, color, glyphMap);
+        //This will be the render line function and will be wrapped later.
+        renderText(renderer, text->lines[cursor.line], fontTexture, cursorTexture, color, glyphMap);
         SDL_RenderPresent(renderer);
     }
+    freeText(text);
     freeGlyphMap(glyphMap);
     TTF_CloseFont(font);
     SDL_Quit();

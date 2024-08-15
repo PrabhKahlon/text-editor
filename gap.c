@@ -56,7 +56,6 @@ void insertBuffer(GapBuffer* gapBuffer, char* text, size_t textSize)
             expandBuffer(gapBuffer);
         }
         gapBuffer->string[gapBuffer->cursor++] = text[i];
-        printf("%s\n", gapBuffer->string);
     }
     return;
 }
