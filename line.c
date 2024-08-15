@@ -60,16 +60,16 @@ void createNewLine(Text* text, size_t index, size_t linePos)
     return;
 }
 
-//Deletes line at position lineNum and free's the associated buffer.
-void deleteLine(Text* text, size_t lineNum, size_t linePos)
+//Deletes line at position lineNum and free's the associated buffer. Returns the new index of the combined line.
+size_t deleteLine(Text* text, size_t lineNum, size_t linePos)
 {
     text->lineCount--;
     GapBuffer* oldBuffer = text->lines[lineNum];
 
     //Copy contents after cursor to end of line
     size_t endLine = oldBuffer->cursor + oldBuffer->length - oldBuffer->gapEnd;
+    size_t newCursorIndex = moveCursorToEnd(text->lines[lineNum - 1]);
     if (linePos < endLine) {
-        moveCursorToEnd(text->lines[lineNum - 1]);
         copyBuffer(text->lines[lineNum - 1], oldBuffer);
     }
 
@@ -78,6 +78,8 @@ void deleteLine(Text* text, size_t lineNum, size_t linePos)
     }
 
     free(oldBuffer);
+    moveCursor(text->lines[lineNum - 1], newCursorIndex);
+    return newCursorIndex;
 }
 
 void insertOnLine(Text* text, int line, char* string, size_t stringLength)

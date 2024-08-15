@@ -234,9 +234,9 @@ int main(void)
                     else {
                         if (cursor.line > 0) {
                             //Delete line
-                            deleteLine(text, cursor.line, cursor.index);
+                            size_t newIndex = deleteLine(text, cursor.line, cursor.index);
                             cursor.line--;
-                            cursor.index = moveCursorToEnd(text->lines[cursor.line]);
+                            cursor.index = newIndex;
                         }
                     }
                     break;
