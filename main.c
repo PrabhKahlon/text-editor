@@ -193,7 +193,7 @@ int main(void)
     sdl_cc(SDL_Init(SDL_INIT_VIDEO));
     sdl_cc(TTF_Init());
     TTF_Font* font = NULL;
-    loadFont("OpenSans-Regular.ttf", 32, &font);
+    loadFont("DejaVuSansMono.ttf", 24, &font);
     SDL_Window* window = sdl_cp(SDL_CreateWindow("Text", 0, 0, 800, 600, SDL_WINDOW_RESIZABLE));
     SDL_Renderer* renderer = sdl_cp(SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED));
     //White color in rgba
@@ -308,6 +308,7 @@ int main(void)
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
         renderText(renderer, text, &cursor, fontTexture, cursorTexture, color, glyphMap);
+        //SDL_RenderCopy(renderer, fontTexture, NULL, &tempRect);
         SDL_RenderPresent(renderer);
     }
     freeText(text);
