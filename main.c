@@ -9,6 +9,7 @@
 #include "glyph.h"
 #include "gap.h"
 #include "line.h"
+#include "file_linux.h"
 
 #define MAX_BUFFER_SIZE 1024
 
@@ -188,7 +189,7 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
     renderCursor(renderer, cursor, text->lines[cursor->line], cursorTexture, glyphMap);
 }
 
-int main(void)
+int main(int argc, char const *argv[])
 {
     sdl_cc(SDL_Init(SDL_INIT_VIDEO));
     sdl_cc(TTF_Init());
@@ -209,6 +210,12 @@ int main(void)
 
     Text* text = createText();
     bool exit = false;
+
+    if(argc >= 2) {
+        char const* fileName = argv[1];
+        openFile(fileName, text);
+        moveCursor(text->lines[cursor.line], cursor.index);
+    }
 
     while (!exit) {
         SDL_Event event = { 0 };
