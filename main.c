@@ -189,7 +189,7 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
     renderCursor(renderer, cursor, text->lines[cursor->line], cursorTexture, glyphMap);
 }
 
-int main(int argc, char const *argv[])
+int main(int argc, char const* argv[])
 {
     sdl_cc(SDL_Init(SDL_INIT_VIDEO));
     sdl_cc(TTF_Init());
@@ -211,7 +211,7 @@ int main(int argc, char const *argv[])
     Text* text = createText();
     bool exit = false;
 
-    if(argc >= 2) {
+    if (argc >= 2) {
         char const* fileName = argv[1];
         openFile(fileName, text);
         moveCursor(text->lines[cursor.line], cursor.index);
@@ -233,6 +233,18 @@ int main(int argc, char const *argv[])
             }
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
+                case SDLK_LCTRL: {
+                    if (argc >= 2) {
+                        size_t prevLine = cursor.line;
+                        size_t prevIndex = cursor.index;
+                        char const* fileName = argv[1];
+                        saveFile(fileName, text);
+                        moveCursor(text->lines[prevLine], prevIndex);
+                        cursor.line = prevLine;
+                        cursor.index = prevIndex;
+                    }
+                    break;
+                }
                 case SDLK_BACKSPACE: {
                     if (cursor.index > 0) {
                         cursor.index--;
@@ -286,9 +298,10 @@ int main(int argc, char const *argv[])
                     if (cursor.line > 0) {
                         cursor.line--;
                         //No index memory. Doing it the notepad way for now.
-                        if(cursor.index > gapUsed(text->lines[cursor.line])) {
+                        if (cursor.index > gapUsed(text->lines[cursor.line])) {
                             cursor.index = moveCursorToEnd(text->lines[cursor.line]);
-                        } else {
+                        }
+                        else {
                             moveCursor(text->lines[cursor.line], cursor.index);
                         }
                     }
@@ -298,9 +311,10 @@ int main(int argc, char const *argv[])
                     if (cursor.line < text->lineCount - 1) {
                         cursor.line++;
                         //No index memory. Doing it the notepad way for now.
-                        if(cursor.index > gapUsed(text->lines[cursor.line])) {
+                        if (cursor.index > gapUsed(text->lines[cursor.line])) {
                             cursor.index = moveCursorToEnd(text->lines[cursor.line]);
-                        } else {
+                        }
+                        else {
                             moveCursor(text->lines[cursor.line], cursor.index);
                         }
                     }

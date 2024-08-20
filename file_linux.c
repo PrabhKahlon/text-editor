@@ -27,6 +27,23 @@ void openFile(char const* fileName, Text* text)
             createNewLine(text, line, 0);
         }
     }
+    fclose(txtFile);
+    return;
+}
+
+void saveFile(char const* fileName, Text* text)
+{
+    FILE* txtFile = fopen(fileName, "w");
+    if(txtFile == NULL) {
+        return;
+    }
+    for(size_t i = 0; i < text->lineCount; i++) {
+        moveCursorToEnd(text->lines[i]);
+        fwrite(text->lines[i]->string, sizeof(char), text->lines[i]->cursor, txtFile);
+        //fputs(text->lines[i]->string, txtFile);
+        fputs("\n", txtFile);
+    }
+    fclose(txtFile);
     return;
 }
 
