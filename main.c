@@ -189,6 +189,16 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
     renderCursor(renderer, cursor, text->lines[cursor->line], cursorTexture, glyphMap);
 }
 
+void mouseToLinePos(size_t* newMouseX, size_t* newMouseY, int curMouseX, int curMouseY, int glyphWidth, int glyphHeight) {
+    // printf("Current mouse location: %d, %d\n", curMouseX, curMouseY);
+    // printf("Glyph w: %d, Glyph h: %d\n", glyphWidth, glyphHeight);
+    size_t newCurPosX = curMouseX / (glyphWidth);
+    size_t newCurPosY = curMouseY / glyphHeight;
+    // printf("New cursor location: %ld, %ld\n", newCurPosX, newCurPosY);
+    *newMouseX = newCurPosX;
+    *newMouseY = newCurPosY;
+}
+
 int main(int argc, char const* argv[])
 {
     sdl_cc(SDL_Init(SDL_INIT_VIDEO));
@@ -206,7 +216,10 @@ int main(int argc, char const* argv[])
     sdl_cc(SDL_FillRect(cursorSurface, NULL, 0xAAFFFFFF));
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
     Cursor cursor = { .line = 0, .index = 0 };
-
+    int mouseX = 0;
+    int mouseY = 0;
+    int lctrl = 0;
+    int rctrl = 0;
 
     Text* text = createText();
     bool exit = false;
@@ -217,31 +230,71 @@ int main(int argc, char const* argv[])
         moveCursor(text->lines[cursor.line], cursor.index);
     }
 
+
+
     while (!exit) {
         SDL_Event event = { 0 };
         while (SDL_PollEvent(&event)) {
             switch (event.type) {
+            case SDL_MOUSEBUTTONDOWN: {
+                SDL_GetMouseState(&mouseX, &mouseY);
+                size_t newMouseX = 0;
+                size_t newMouseY = 0;
+                mouseToLinePos(&newMouseX, &newMouseY, mouseX, mouseY, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
+                // Check if line postion is valid
+                if (newMouseY > text->lineCount - 1) {
+                    newMouseY = text->lineCount - 1;
+                }
+                cursor.line = newMouseY;
+                // Check if column position is valid
+                size_t lineLength = (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd;
+                if (newMouseX > lineLength) {
+                    newMouseX = lineLength;
+                }
+                cursor.index = newMouseX;
+                moveCursor(text->lines[cursor.line], cursor.index);
+                break;
+            }
             case SDL_QUIT: {
                 exit = true;
                 break;
             }
             case SDL_TEXTINPUT: {
-                size_t textSize = strlen(event.text.text);
-                insertOnLine(text, cursor.line, event.text.text, textSize);
-                cursor.index += textSize;
+                int ctrlMod = lctrl || rctrl;
+                if (ctrlMod == 0) {
+                    size_t textSize = strlen(event.text.text);
+                    insertOnLine(text, cursor.line, event.text.text, textSize);
+                    cursor.index += textSize;
+                }
+                break;
+            }
+            case SDL_KEYUP: {
+                switch (event.key.keysym.sym) {
+                case SDLK_LCTRL: {
+                    lctrl = 0;
+                    break;
+                }
+                }
                 break;
             }
             case SDL_KEYDOWN: {
                 switch (event.key.keysym.sym) {
                 case SDLK_LCTRL: {
-                    if (argc >= 2) {
-                        size_t prevLine = cursor.line;
-                        size_t prevIndex = cursor.index;
-                        char const* fileName = argv[1];
-                        saveFile(fileName, text);
-                        moveCursor(text->lines[prevLine], prevIndex);
-                        cursor.line = prevLine;
-                        cursor.index = prevIndex;
+                    lctrl = 1;
+                    break;
+                }
+                case SDLK_s: {
+                    int ctrlMod = lctrl || rctrl;
+                    if (ctrlMod) {
+                        if (argc >= 2) {
+                            size_t prevLine = cursor.line;
+                            size_t prevIndex = cursor.index;
+                            char const* fileName = argv[1];
+                            saveFile(fileName, text);
+                            moveCursor(text->lines[prevLine], prevIndex);
+                            cursor.line = prevLine;
+                            cursor.index = prevIndex;
+                        }
                     }
                     break;
                 }
