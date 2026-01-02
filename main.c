@@ -12,6 +12,8 @@
 #include "file_linux.h"
 
 #define MAX_BUFFER_SIZE 1024
+#define SCROLL_STEP 2
+#define SCROLL_DIRECTION -1
 
 Vec2 windowSize = {
     .x = 0,
@@ -226,10 +228,24 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
 
 // Cursor Helper Functions
 
+void scroll(int x, int y, Text* text) {
+    int scrollAmount = y * SCROLL_STEP * SCROLL_DIRECTION;
+    long newIndex = (long)scrollCount + scrollAmount;
+    if(newIndex < 0) {
+        scrollCount = 0;
+    } else if ((scrollCount + scrollAmount) > (text->lineCount - 1)) {
+        scrollCount = text->lineCount - 1;
+    } else {
+        scrollCount += scrollAmount;
+    }
+}
+
 void mouseToLinePos(size_t* newMouseX, size_t* newMouseY, int curMouseX, int curMouseY, int glyphWidth, int glyphHeight)
 {
+    // Calculate scroll offset like usual and subtract from mouse pos to get line (double negative)
+    float scrollOffset = -(float)scrollCount * (float)glyphHeight;
     size_t newCurPosX = curMouseX / (glyphWidth);
-    size_t newCurPosY = curMouseY / glyphHeight;
+    size_t newCurPosY = (curMouseY - scrollOffset) / glyphHeight;
     *newMouseX = newCurPosX;
     *newMouseY = newCurPosY;
 }
@@ -334,6 +350,16 @@ int main(int argc, char const* argv[])
                 }
                 cursor.index = newMouseX;
                 moveCursor(text->lines[cursor.line], cursor.index);
+                break;
+            }
+            case SDL_MOUSEWHEEL:
+            {
+                printf("Mouse Wheel Event\n");
+                printf("Direction=%d\n", event.wheel.direction);
+                printf("Scroll Amount=%d\n", event.wheel.y);
+                if(event.wheel.direction == 0) {
+                    scroll(event.wheel.x, event.wheel.y, text);
+                }
                 break;
             }
             case SDL_QUIT:
