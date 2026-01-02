@@ -65,28 +65,33 @@ void createNewLine(Text* text, size_t index, size_t linePos)
 //Deletes line at position lineNum and free's the associated buffer. Returns the new index of the combined line.
 size_t deleteLine(Text* text, size_t lineNum, size_t linePos)
 {
-    // Save last line index for later
-    size_t lastLine = text->lineCount - 1;
-    
-    // Combine middle lines
-    GapBuffer* oldBuffer = text->lines[lineNum];
+    if (lineNum == 0 || lineNum >= text->lineCount) {
+        return 0;
+    }
 
-    //Copy contents after cursor to end of line
-    size_t endLine = oldBuffer->cursor + oldBuffer->length - oldBuffer->gapEnd;
-    size_t newCursorIndex = moveCursorToEnd(text->lines[lineNum - 1]);
+    GapBuffer* deleted = text->lines[lineNum];
+    GapBuffer* prev = text->lines[lineNum - 1];
+
+    // Move cursor to end of previous line
+    size_t newCursorIndex = moveCursorToEnd(prev);
+
+    // Append deleted line contents if needed
+    size_t endLine = deleted->cursor + (deleted->length - deleted->gapEnd);
     if (linePos < endLine) {
-        copyBuffer(text->lines[lineNum - 1], oldBuffer);
+        copyBuffer(prev, deleted);
     }
 
-    if (lineNum < text->lineCount) {
-        memmove(text->lines + lineNum, text->lines + lineNum + 1, sizeof(GapBuffer*) * ((text->lineCount - 1) - lineNum));
-    }
-    moveCursor(text->lines[lineNum - 1], newCursorIndex);
+    // Free the deleted line buffer
+    freeBuffer(deleted);
+
+    // Shift remaining line pointers left
+    memmove(text->lines + lineNum, text->lines + lineNum + 1, sizeof(GapBuffer*) * (text->lineCount - lineNum));
 
     text->lineCount--;
-    //Erase and free last line
-    // freeBuffer(text->lines[lastLine]);
-    
+
+    // Restore cursor
+    moveCursor(prev, newCursorIndex);
+
     return newCursorIndex;
 }
 

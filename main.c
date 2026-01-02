@@ -254,9 +254,13 @@ void mouseToLinePos(size_t* newMouseX, size_t* newMouseY, int curMouseX, int cur
     *newMouseY = newCurPosY;
 }
 
-void cursorToPos()
+void cursorToPos(Cursor* cursor, Vec2* cursorPos, int glyphWidth, int glyphHeight)
 {
-
+    float newCursorPosX = (float)cursor->index * (float)glyphWidth;
+    float newCursorPosY = ((float)cursor->line * (float)glyphHeight);
+    // printf("curx = %d, cury = %d\n", newCursorPosX, newCursorPosY);
+    cursorPos->x = newCursorPosX;
+    cursorPos->y = newCursorPosY;
 }
 
 void moveCursorDown(Cursor* cursor, Text* text)
@@ -362,7 +366,7 @@ int main(int argc, char const* argv[])
                 // printf("Direction=%d\n", event.wheel.direction);
                 // printf("Scroll Amount=%d\n", event.wheel.y);
                 if (event.wheel.direction == 0) {
-                    scroll(event.wheel.x, event.wheel.y, text);
+                    scroll(event.wheel.x, event.wheel.y, text);                 
                 }
                 break;
             }
@@ -425,11 +429,11 @@ int main(int argc, char const* argv[])
                     else {
                         if (cursor.line > 0) {
                             // Delete line
-                            printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
+                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
                             size_t newIndex = deleteLine(text, cursor.line, cursor.index);
                             cursor.line--;
                             cursor.index = newIndex;
-                            printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
+                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
                         }
                     }
                     break;
@@ -475,37 +479,35 @@ int main(int argc, char const* argv[])
                 {
                     // Move Cursor
                     moveCursorUp(&cursor, text);
-                    // if (cursor.line > 0)
-                    // {
-                    //     cursor.line--;
-                    //     // No index memory. Doing it the notepad way for now.
-                    //     if (cursor.index > gapUsed(text->lines[cursor.line]))
-                    //     {
-                    //         cursor.index = moveCursorToEnd(text->lines[cursor.line]);
-                    //     }
-                    //     else
-                    //     {
-                    //         moveCursor(text->lines[cursor.line], cursor.index);
-                    //     }
-                    // }
+                    Vec2 cursorPos = {
+                        .x = 0,
+                        .y = 0
+                    };
+                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
+                    float scrollOffset = -(float)scrollCount * (float)glyphMap->glyphHeight;
+                    cursorPos.y += scrollOffset;
+                    if(!isInViewBox(cursorPos, windowSize)) {
+                        scroll(0, 1, text);
+                        moveCursorUp(&cursor, text);
+                    }
                     break;
                 }
                 case SDLK_DOWN:
                 {
                     // Move cursor
                     moveCursorDown(&cursor, text);
-                    printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
-                    // Need to calculate if the next line will be on screen
-                    // if (cursor.line < text->lineCount - 1) {
-                    //     cursor.line++;
-                    //     //No index memory. Doing it the notepad way for now.
-                    //     if (cursor.index > gapUsed(text->lines[cursor.line])) {
-                    //         cursor.index = moveCursorToEnd(text->lines[cursor.line]);
-                    //     }
-                    //     else {
-                    //         moveCursor(text->lines[cursor.line], cursor.index);
-                    //     }
-                    // }
+                    Vec2 cursorPos = {
+                        .x = 0,
+                        .y = 0
+                    };
+                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
+                    float scrollOffset = -(float)scrollCount * (float)glyphMap->glyphHeight;
+                    cursorPos.y += scrollOffset;
+                    cursorPos.y += glyphMap->glyphHeight;
+                    if(!isInViewBox(cursorPos, windowSize)) {
+                        scroll(0, -1, text);
+                        moveCursorDown(&cursor, text);
+                    }
                     break;
                 }
                 case SDLK_PAGEUP:
@@ -531,16 +533,14 @@ int main(int argc, char const* argv[])
                     // Add 4 spaces for each tab key press
                     char* tabString = "    ";
                     insertOnLine(text, cursor.line, tabString, strlen(tabString));
-                    printf("This is sizeof=%ld\n", sizeof(tabString));
-                    // Testing
-                    // Hello
-
+                    cursor.index += strlen(tabString);
+                    // printf("This is sizeof=%ld\n", sizeof(tabString));
                 }
                 }
                 break;
             }
             }
-        }
+        }            
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
