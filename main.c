@@ -12,8 +12,10 @@
 #include "file_linux.h"
 
 #define MAX_BUFFER_SIZE 1024
-#define SCROLL_STEP 2
+#define SCROLL_STEP_X 5
+#define SCROLL_STEP_Y 2
 #define SCROLL_DIRECTION -1
+#define MAX_HORIZONTAL_SCROLL 200
 
 Vec2 windowSize = {
     .x = 0,
@@ -21,7 +23,7 @@ Vec2 windowSize = {
 };
 
 int minimumScrollLength = 0;
-size_t scrollCount = 0;
+size_t scrollCountX, scrollCountY = 0;
 
 typedef struct {
     size_t line;
@@ -122,7 +124,7 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
 }
 
 // Very basic cursor
-void renderCursor(SDL_Renderer* renderer, float offset, Cursor* cursor, GapBuffer* text, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
+void renderCursor(SDL_Renderer* renderer, float offsetX, float offsetY, Cursor* cursor, GapBuffer* text, SDL_Texture* cursorTexture, Glyph_Map* glyphMap)
 {
     SDL_Rect destRect = {
         .x = 0,
@@ -131,7 +133,8 @@ void renderCursor(SDL_Renderer* renderer, float offset, Cursor* cursor, GapBuffe
         .h = glyphMap->glyphHeight
     };
 
-    destRect.y += offset;
+    destRect.x += offsetX;
+    destRect.y += offsetY;
 
     for (size_t i = 0; i < text->cursor; i++) {
         int glyph = text->string[i];
@@ -213,8 +216,10 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
 
     // scroll count should never be negative and should be clamped to linecount
     // Maybe call clamp scroll here?
-    float scrollOffset = -(float)scrollCount * (float)glyphMap->glyphHeight;
-    pen.y = scrollOffset;
+    float scrollOffsetX = -(float)scrollCountX * ((float)glyphMap->glyphHeight / 2.0f);
+    float scrollOffsetY = -(float)scrollCountY * (float)glyphMap->glyphHeight;
+    pen.x = scrollOffsetX;
+    pen.y = scrollOffsetY;
 
     for (size_t i = 0; i < text->lineCount; i++) {
         // Only render what is visible to the user
@@ -223,33 +228,45 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
         }
         renderLine(renderer, &pen, text->lines[i], fontTexture, cursorTexture, color, glyphMap);
         pen.y += glyphMap->glyphHeight;
-        pen.x = 0;
+        pen.x = scrollOffsetX;
     }
-    renderCursor(renderer, scrollOffset, cursor, text->lines[cursor->line], cursorTexture, glyphMap);
+    renderCursor(renderer, scrollOffsetX, scrollOffsetY, cursor, text->lines[cursor->line], cursorTexture, glyphMap);
 }
 
 // Cursor Helper Functions
 
 void scroll(int x, int y, Text* text) {
-    int scrollAmount = y * SCROLL_STEP * SCROLL_DIRECTION;
-    long newIndex = (long)scrollCount + scrollAmount;
-    if (newIndex < 0) {
-        scrollCount = 0;
+    int scrollAmountX = x * SCROLL_STEP_X * SCROLL_DIRECTION;
+    int scrollAmountY = y * SCROLL_STEP_Y * SCROLL_DIRECTION;
+    long newIndexX = (long)scrollCountX + scrollAmountX;
+    long newIndexY = (long)scrollCountY + scrollAmountY;
+    if (newIndexX < 0) {
+        scrollCountX = 0;
     }
-    else if ((scrollCount + scrollAmount) > (text->lineCount - 1)) {
-        scrollCount = text->lineCount - 1;
+    else if ((scrollCountX + scrollAmountX) > MAX_HORIZONTAL_SCROLL) {
+        scrollCountX = MAX_HORIZONTAL_SCROLL;
     }
     else {
-        scrollCount += scrollAmount;
+        scrollCountX += scrollAmountX;
+    }
+    if (newIndexY < 0) {
+        scrollCountY = 0;
+    }
+    else if ((scrollCountY + scrollAmountY) > (text->lineCount - 1)) {
+        scrollCountY = text->lineCount - 1;
+    }
+    else {
+        scrollCountY += scrollAmountY;
     }
 }
 
 void mouseToLinePos(size_t* newMouseX, size_t* newMouseY, int curMouseX, int curMouseY, int glyphWidth, int glyphHeight)
 {
     // Calculate scroll offset like usual and subtract from mouse pos to get line (double negative)
-    float scrollOffset = -(float)scrollCount * (float)glyphHeight;
-    size_t newCurPosX = curMouseX / (glyphWidth);
-    size_t newCurPosY = (curMouseY - scrollOffset) / glyphHeight;
+    float scrollOffsetX = -(float)scrollCountX * ((float)glyphHeight / 2.0f);
+    float scrollOffsetY = -(float)scrollCountY * (float)glyphHeight;
+    size_t newCurPosX = (curMouseX - scrollOffsetX) / (glyphWidth);
+    size_t newCurPosY = (curMouseY - scrollOffsetY) / glyphHeight;
     *newMouseX = newCurPosX;
     *newMouseY = newCurPosY;
 }
@@ -310,11 +327,12 @@ int main(int argc, char const* argv[])
     Cursor cursor = { .line = 0, .index = 0 };
     int mouseX = 0;
     int mouseY = 0;
+    int lshift = 0;
     int lctrl = 0;
     int rctrl = 0;
 
     minimumScrollLength = glyphMap->glyphHeight;
-    scrollCount = 0;
+    scrollCountY = 0;
 
     Text* text = createText();
     bool exit = false;
@@ -365,8 +383,16 @@ int main(int argc, char const* argv[])
                 // printf("Mouse Wheel Event\n");
                 // printf("Direction=%d\n", event.wheel.direction);
                 // printf("Scroll Amount=%d\n", event.wheel.y);
-                if (event.wheel.direction == 0) {
-                    scroll(event.wheel.x, event.wheel.y, text);                 
+                int shiftmod = lshift;
+                if (shiftmod) {
+                    if (event.wheel.direction == 0) {
+                        scroll(event.wheel.y, event.wheel.x, text);
+                    }
+                }
+                else {
+                    if (event.wheel.direction == 0) {
+                        scroll(event.wheel.x, event.wheel.y, text);
+                    }
                 }
                 break;
             }
@@ -393,6 +419,11 @@ int main(int argc, char const* argv[])
                     lctrl = 0;
                     break;
                 }
+                case SDLK_LSHIFT:
+                {
+                    lshift = 0;
+                    break;
+                }
                 }
                 break;
             }
@@ -402,6 +433,11 @@ int main(int argc, char const* argv[])
                 case SDLK_LCTRL:
                 {
                     lctrl = 1;
+                    break;
+                }
+                case SDLK_LSHIFT:
+                {
+                    lshift = 1;
                     break;
                 }
                 case SDLK_s:
@@ -484,9 +520,9 @@ int main(int argc, char const* argv[])
                         .y = 0
                     };
                     cursorToPos(&cursor, &cursorPos, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
-                    float scrollOffset = -(float)scrollCount * (float)glyphMap->glyphHeight;
-                    cursorPos.y += scrollOffset;
-                    if(!isInViewBox(cursorPos, windowSize)) {
+                    float scrollOffsetY = -(float)scrollCountY * (float)glyphMap->glyphHeight;
+                    cursorPos.y += scrollOffsetY;
+                    if (!isInViewBox(cursorPos, windowSize)) {
                         scroll(0, 1, text);
                         moveCursorUp(&cursor, text);
                     }
@@ -501,10 +537,10 @@ int main(int argc, char const* argv[])
                         .y = 0
                     };
                     cursorToPos(&cursor, &cursorPos, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
-                    float scrollOffset = -(float)scrollCount * (float)glyphMap->glyphHeight;
-                    cursorPos.y += scrollOffset;
+                    float scrollOffsetY = -(float)scrollCountY * (float)glyphMap->glyphHeight;
+                    cursorPos.y += scrollOffsetY;
                     cursorPos.y += glyphMap->glyphHeight;
-                    if(!isInViewBox(cursorPos, windowSize)) {
+                    if (!isInViewBox(cursorPos, windowSize)) {
                         scroll(0, -1, text);
                         moveCursorDown(&cursor, text);
                     }
@@ -512,19 +548,19 @@ int main(int argc, char const* argv[])
                 }
                 case SDLK_PAGEUP:
                 {
-                    if (scrollCount == 0) {
+                    if (scrollCountX == 0) {
                         break;
                     }
-                    scrollCount--;
+                    scrollCountX--;
                     // moveCursorUp(&cursor, text);
                     break;
                 }
                 case SDLK_PAGEDOWN:
                 {
-                    if (scrollCount == text->lineCount - 1) {
+                    if (scrollCountX == text->lineCount - 1) {
                         break;
                     }
-                    scrollCount++;
+                    scrollCountX++;
                     // moveCursorDown(&cursor, text);
                     break;
                 }
@@ -540,7 +576,7 @@ int main(int argc, char const* argv[])
                 break;
             }
             }
-        }            
+        }
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
