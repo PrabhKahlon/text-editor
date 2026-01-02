@@ -92,7 +92,7 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
     SDL_Surface* cacheSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, maxWidth, maxHeight, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
 
     // Create ASCII string to generate glyphs
-    char asciiString[95] = "";
+    char asciiString[96] = "";
     char c = 32;
     for (int i = 0; i < 95; i++) {
         asciiString[i] = c++;
@@ -114,8 +114,10 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
         sdl_cc(SDL_BlitSurface(glyphSurface, &srcRect, cacheSurface, &dstRect));
         addGlyph(glyphMap, asciiString[i], &cacheCursor);
         cacheCursor.x += glyphSurface->w;
+        SDL_FreeSurface(glyphSurface);
     }
     SDL_Texture* cacheTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cacheSurface));
+    SDL_FreeSurface(cacheSurface);
     return cacheTexture;
 }
 
@@ -158,7 +160,7 @@ void renderCursor(SDL_Renderer* renderer, float offset, Cursor* cursor, GapBuffe
         .x = destRect.x,
         .y = destRect.y
     };
-    if(!isInViewBox(cursorPos, windowSize)) {
+    if (!isInViewBox(cursorPos, windowSize)) {
         return;
     }
 
@@ -231,11 +233,13 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
 void scroll(int x, int y, Text* text) {
     int scrollAmount = y * SCROLL_STEP * SCROLL_DIRECTION;
     long newIndex = (long)scrollCount + scrollAmount;
-    if(newIndex < 0) {
+    if (newIndex < 0) {
         scrollCount = 0;
-    } else if ((scrollCount + scrollAmount) > (text->lineCount - 1)) {
+    }
+    else if ((scrollCount + scrollAmount) > (text->lineCount - 1)) {
         scrollCount = text->lineCount - 1;
-    } else {
+    }
+    else {
         scrollCount += scrollAmount;
     }
 }
@@ -354,10 +358,10 @@ int main(int argc, char const* argv[])
             }
             case SDL_MOUSEWHEEL:
             {
-                printf("Mouse Wheel Event\n");
-                printf("Direction=%d\n", event.wheel.direction);
-                printf("Scroll Amount=%d\n", event.wheel.y);
-                if(event.wheel.direction == 0) {
+                // printf("Mouse Wheel Event\n");
+                // printf("Direction=%d\n", event.wheel.direction);
+                // printf("Scroll Amount=%d\n", event.wheel.y);
+                if (event.wheel.direction == 0) {
                     scroll(event.wheel.x, event.wheel.y, text);
                 }
                 break;
@@ -421,9 +425,11 @@ int main(int argc, char const* argv[])
                     else {
                         if (cursor.line > 0) {
                             // Delete line
+                            printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
                             size_t newIndex = deleteLine(text, cursor.line, cursor.index);
                             cursor.line--;
                             cursor.index = newIndex;
+                            printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
                         }
                     }
                     break;
@@ -488,6 +494,8 @@ int main(int argc, char const* argv[])
                 {
                     // Move cursor
                     moveCursorDown(&cursor, text);
+                    printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
+                    // Need to calculate if the next line will be on screen
                     // if (cursor.line < text->lineCount - 1) {
                     //     cursor.line++;
                     //     //No index memory. Doing it the notepad way for now.
@@ -518,6 +526,16 @@ int main(int argc, char const* argv[])
                     // moveCursorDown(&cursor, text);
                     break;
                 }
+                case SDLK_TAB:
+                {
+                    // Add 4 spaces for each tab key press
+                    char* tabString = "    ";
+                    insertOnLine(text, cursor.line, tabString, strlen(tabString));
+                    printf("This is sizeof=%ld\n", sizeof(tabString));
+                    // Testing
+                    // Hello
+
+                }
                 }
                 break;
             }
@@ -533,6 +551,11 @@ int main(int argc, char const* argv[])
     freeText(text);
     freeGlyphMap(glyphMap);
     TTF_CloseFont(font);
+    SDL_DestroyTexture(cursorTexture);
+    SDL_FreeSurface(cursorSurface);
+    SDL_DestroyTexture(fontTexture);
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
     SDL_Quit();
     return 0;
 }

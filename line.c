@@ -20,7 +20,9 @@ void freeText(Text* text)
 {
     for (size_t i = 0; i < text->lineCount; i++) {
         freeBuffer(text->lines[i]);
+        text->lines[i] = NULL;
     }
+    free(text->lines);
     free(text);
 }
 
@@ -41,7 +43,7 @@ void createNewLine(Text* text, size_t index, size_t linePos)
     }
     else {
         // Inserting in the middle so shift by one
-        memmove(text->lines + index + 1, text->lines + index, sizeof(GapBuffer*) * (text->lineCount - 1) - index);
+        memmove(text->lines + index + 1, text->lines + index, sizeof(GapBuffer*) * ((text->lineCount - 1) - index));
         text->lines[index] = createBuffer();
     }
 
@@ -63,7 +65,10 @@ void createNewLine(Text* text, size_t index, size_t linePos)
 //Deletes line at position lineNum and free's the associated buffer. Returns the new index of the combined line.
 size_t deleteLine(Text* text, size_t lineNum, size_t linePos)
 {
-    text->lineCount--;
+    // Save last line index for later
+    size_t lastLine = text->lineCount - 1;
+    
+    // Combine middle lines
     GapBuffer* oldBuffer = text->lines[lineNum];
 
     //Copy contents after cursor to end of line
@@ -74,11 +79,14 @@ size_t deleteLine(Text* text, size_t lineNum, size_t linePos)
     }
 
     if (lineNum < text->lineCount) {
-        memmove(text->lines + lineNum, text->lines + lineNum + 1, sizeof(GapBuffer*) * (text->lineCount - 1) - lineNum);
+        memmove(text->lines + lineNum, text->lines + lineNum + 1, sizeof(GapBuffer*) * ((text->lineCount - 1) - lineNum));
     }
-
-    free(oldBuffer);
     moveCursor(text->lines[lineNum - 1], newCursorIndex);
+
+    text->lineCount--;
+    //Erase and free last line
+    // freeBuffer(text->lines[lastLine]);
+    
     return newCursorIndex;
 }
 
