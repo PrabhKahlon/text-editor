@@ -17,6 +17,7 @@ typedef struct {
 typedef struct {
     int maxGlyphs;
     Glyph_Rect** glyphs;
+    int glyphWidth;
     int glyphHeight;
 } Glyph_Map;
 

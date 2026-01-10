@@ -13,6 +13,7 @@ Glyph_Map* createGlyphMap()
         glyphMap->glyphs[i] = NULL;
     }
 
+    glyphMap->glyphWidth = 0;
     glyphMap->glyphHeight = 0;
 
     return glyphMap;

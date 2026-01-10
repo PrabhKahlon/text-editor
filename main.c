@@ -16,6 +16,8 @@
 #define SCROLL_STEP_Y 2
 #define SCROLL_DIRECTION -1
 #define MAX_HORIZONTAL_SCROLL 200
+#define X_OFFSET 40
+#define Y_OFFSET 20
 
 Vec2 windowSize = {
     .x = 0,
@@ -78,17 +80,32 @@ bool isInViewBox(Vec2 coord, Vec2 windowSize)
 
 SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* glyphMap)
 {
-    SDL_Color color = { 255, 255, 255, 255 };
-    int height = TTF_FontHeight(font);
-    int ascent = TTF_FontAscent(font);
-    int descent = TTF_FontDescent(font);
-
-    if (ascent - descent != height) {
-        height = ascent - descent;
+    if(!TTF_FontFaceIsFixedWidth(font)) {
+        printf("Error: Text Editor is only compatable with monospace fonts!\n");
+        exit(1);
     }
+
+    SDL_Color color = { 255, 255, 255, 255 };
+    // TTF_SetFontKerning(font, false);
+    // int testH = TTF_FontHeight(font);
+    // int ascent = TTF_FontAscent(font);
+    // int descent = TTF_FontDescent(font);
+
+    int width = 0;
+    int height = 0;
+    TTF_SizeUTF8(font, "W", &width, &height);
+
+    // if (ascent - descent != testH) {
+    //     testH = ascent - descent;
+    // }
+
     int maxWidth = height * 12;
     int maxHeight = height * 12;
+
+    glyphMap->glyphWidth = width;
     glyphMap->glyphHeight = height;
+
+    printf("%d, %d\n", width, height);
 
     // This only works on little endian machine
     SDL_Surface* cacheSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, maxWidth, maxHeight, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
@@ -129,12 +146,12 @@ void renderCursor(SDL_Renderer* renderer, float offsetX, float offsetY, Cursor* 
     SDL_Rect destRect = {
         .x = 0,
         .y = cursor->line * glyphMap->glyphHeight,
-        .w = glyphMap->glyphHeight / 2,
+        .w = glyphMap->glyphWidth,
         .h = glyphMap->glyphHeight
     };
 
-    destRect.x += offsetX;
-    destRect.y += offsetY;
+    destRect.x += offsetX + X_OFFSET;
+    destRect.y += offsetY + Y_OFFSET;
 
     for (size_t i = 0; i < text->cursor; i++) {
         int glyph = text->string[i];
@@ -178,7 +195,7 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
     if (c < 32) {
         if (c == 10) {
             // pos->y += glyphMap->glyphHeight;
-            // pos->x = 0;
+            // pos->x = 20;
             return;
         }
         return;
@@ -216,10 +233,10 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
 
     // scroll count should never be negative and should be clamped to linecount
     // Maybe call clamp scroll here?
-    float scrollOffsetX = -(float)scrollCountX * ((float)glyphMap->glyphHeight / 2.0f);
+    float scrollOffsetX = -(float)scrollCountX * ((float)glyphMap->glyphWidth);
     float scrollOffsetY = -(float)scrollCountY * (float)glyphMap->glyphHeight;
-    pen.x = scrollOffsetX;
-    pen.y = scrollOffsetY;
+    pen.x = scrollOffsetX + X_OFFSET;
+    pen.y = scrollOffsetY + Y_OFFSET;
 
     for (size_t i = 0; i < text->lineCount; i++) {
         // Only render what is visible to the user
@@ -228,7 +245,7 @@ void renderText(SDL_Renderer* renderer, Text* text, Cursor* cursor, SDL_Texture*
         }
         renderLine(renderer, &pen, text->lines[i], fontTexture, cursorTexture, color, glyphMap);
         pen.y += glyphMap->glyphHeight;
-        pen.x = scrollOffsetX;
+        pen.x = scrollOffsetX + X_OFFSET;
     }
     renderCursor(renderer, scrollOffsetX, scrollOffsetY, cursor, text->lines[cursor->line], cursorTexture, glyphMap);
 }
@@ -265,9 +282,9 @@ void mouseToLinePos(size_t* newMouseX, size_t* newMouseY, int curMouseX, int cur
     // Calculate scroll offset like usual and subtract from mouse pos to get line (double negative)
     float scrollOffsetX = -(float)scrollCountX * ((float)glyphHeight / 2.0f);
     float scrollOffsetY = -(float)scrollCountY * (float)glyphHeight;
-    size_t newCurPosX = (curMouseX - scrollOffsetX) / (glyphWidth);
-    size_t newCurPosY = (curMouseY - scrollOffsetY) / glyphHeight;
-    *newMouseX = newCurPosX;
+    int newCurPosX = (curMouseX - scrollOffsetX - X_OFFSET) / (glyphWidth);
+    int newCurPosY = (curMouseY - scrollOffsetY - Y_OFFSET) / glyphHeight;
+    *newMouseX = newCurPosX >= 0 ? newCurPosX : 0;
     *newMouseY = newCurPosY;
 }
 
@@ -313,7 +330,7 @@ int main(int argc, char const* argv[])
     sdl_cc(SDL_Init(SDL_INIT_VIDEO));
     sdl_cc(TTF_Init());
     TTF_Font* font = NULL;
-    loadFont("DejaVuSansMono.ttf", 24, &font);
+    loadFont("DejaVuSansMono.ttf", 18, &font);
     SDL_Window* window = sdl_cp(SDL_CreateWindow("Text", 0, 0, 800, 600, SDL_WINDOW_RESIZABLE));
     SDL_Renderer* renderer = sdl_cp(SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED));
     // White color in rgba
@@ -363,7 +380,7 @@ int main(int argc, char const* argv[])
                 SDL_GetMouseState(&mouseX, &mouseY);
                 size_t newMouseX = 0;
                 size_t newMouseY = 0;
-                mouseToLinePos(&newMouseX, &newMouseY, mouseX, mouseY, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
+                mouseToLinePos(&newMouseX, &newMouseY, mouseX, mouseY, glyphMap->glyphWidth, glyphMap->glyphHeight);
                 // Check if line postion is valid
                 if (newMouseY > text->lineCount - 1) {
                     newMouseY = text->lineCount - 1;
@@ -519,7 +536,7 @@ int main(int argc, char const* argv[])
                         .x = 0,
                         .y = 0
                     };
-                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
+                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphWidth, glyphMap->glyphHeight);
                     float scrollOffsetY = -(float)scrollCountY * (float)glyphMap->glyphHeight;
                     cursorPos.y += scrollOffsetY;
                     if (!isInViewBox(cursorPos, windowSize)) {
@@ -536,7 +553,7 @@ int main(int argc, char const* argv[])
                         .x = 0,
                         .y = 0
                     };
-                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphHeight / 2, glyphMap->glyphHeight);
+                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphWidth, glyphMap->glyphHeight);
                     float scrollOffsetY = -(float)scrollCountY * (float)glyphMap->glyphHeight;
                     cursorPos.y += scrollOffsetY;
                     cursorPos.y += glyphMap->glyphHeight;
