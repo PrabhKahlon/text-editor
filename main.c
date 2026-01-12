@@ -18,6 +18,7 @@
 #define MAX_HORIZONTAL_SCROLL 200
 #define X_OFFSET 40
 #define Y_OFFSET 20
+#define SCROLLBAR_WIDTH 15
 
 Vec2 windowSize = {
     .x = 0,
@@ -32,6 +33,11 @@ typedef struct {
     size_t index;
     // Vec2 pos;
 } Cursor;
+
+// List of clickable items
+typedef struct {
+    SDL_Rect* clickableRects;
+} ClickableItems;
 
 void sdl_cc(int code)
 {
@@ -325,6 +331,24 @@ void moveCursorUp(Cursor* cursor, Text* text)
     }
 }
 
+void renderScrollBar(SDL_Renderer* renderer, Text* text, int glyphHeight, ClickableItems* buttons) {
+    SDL_Surface* sqSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, 50, 50, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
+    sdl_cc(SDL_FillRect(sqSurface, NULL, 0xAAFFFFFF));
+    SDL_Texture* sqTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, sqSurface));
+    // Calculate scroll bar size
+    int scrollbarHeight = (windowSize.y) / (text->lineCount - 1) * glyphHeight;
+    float scrollbarOffset = ((float)scrollCountY / (float)(text->lineCount - 1)) * ((float)windowSize.y - (float)scrollbarHeight);
+    // printf("%f\n", scrollbarOffset);
+    SDL_Rect sqRect = buttons->clickableRects[0];
+    sqRect.h = scrollbarHeight;
+    sqRect.w = SCROLLBAR_WIDTH;
+    sqRect.x = windowSize.x - SCROLLBAR_WIDTH;
+    sqRect.y = (int)scrollbarOffset;
+    SDL_RenderCopy(renderer, sqTexture, NULL, &sqRect);
+    SDL_FreeSurface(sqSurface);
+    SDL_DestroyTexture(sqTexture);
+}
+
 int main(int argc, char const* argv[])
 {
     sdl_cc(SDL_Init(SDL_INIT_VIDEO));
@@ -353,6 +377,11 @@ int main(int argc, char const* argv[])
 
     Text* text = createText();
     bool exit = false;
+
+    // Define Clickable Buttons
+    SDL_Rect buttonsLocations[10];
+    ClickableItems buttons = {.clickableRects = buttonsLocations};
+    buttons.clickableRects[0] = (SDL_Rect) {.h = 0, .w = 0, .x = 0, .y = 0};
 
     if (argc >= 2) {
         char const* fileName = argv[1];
@@ -598,6 +627,7 @@ int main(int argc, char const* argv[])
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
         renderText(renderer, text, &cursor, fontTexture, cursorTexture, color, glyphMap);
+        renderScrollBar(renderer, text, glyphMap->glyphHeight, &buttons);
         // SDL_RenderCopy(renderer, fontTexture, NULL, &tempRect);
         SDL_RenderPresent(renderer);
     }
