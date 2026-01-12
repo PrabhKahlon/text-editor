@@ -473,7 +473,7 @@ int main(int argc, char const* argv[])
     editor.view = (Viewport){ .windowSize = {0, 0}, .scrollCountX = 0, .scrollCountY = 0 };
 
     // Colors
-    SDL_Color white = { 255, 255, 255, 255 };
+    // SDL_Color white = { 255, 255, 255, 255 };
 
     // Font texture
     SDL_Texture* fontTexture = cacheTexture(renderer, font, editor.glyphMap);
@@ -509,39 +509,45 @@ int main(int argc, char const* argv[])
             case SDL_WINDOWEVENT:
             {
                 if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    int winW, winH = 0;
+                    int winW = 0, winH = 0;
                     SDL_GetWindowSize(window, &winW, &winH);
-                    editor.view.windowSize.x = winW;
-                    editor.view.windowSize.y = winH;
-                    // printf("Window size w=%d, h=%d\n", windowW, windowH);
+
+                    Viewport* viewport = &editor.view;
+                    viewport->windowSize.x = winW;
+                    viewport->windowSize.y = winH;
                 }
                 break;
             }
             case SDL_MOUSEBUTTONDOWN:
             {
                 SDL_GetMouseState(&mouseX, &mouseY);
-                // Check if a button has been clicked
+
                 if (mouseOnButton(mouseX, mouseY, &buttons)) {
-                    printf("Button Clicked!\n");
-                    // Currently the only button is the scrollwheel so start scrolling
+                    // printf("Button Clicked!\n");
                     scrollWheelClicked = 1;
                     break;
                 }
-                size_t newMouseX = 0;
-                size_t newMouseY = 0;
+
+                size_t newMouseX = 0, newMouseY = 0;
                 mouseToLinePos(&editor, &newMouseX, &newMouseY, mouseX, mouseY);
-                // Check if line postion is valid
-                if (newMouseY > editor.text->lineCount - 1) {
-                    newMouseY = editor.text->lineCount - 1;
+
+                Text* text = editor.text;
+                Cursor* cursor = &editor.cursor;
+
+                if (newMouseY > text->lineCount - 1) {
+                    newMouseY = text->lineCount - 1;
                 }
-                editor.cursor.line = newMouseY;
-                // Check if column position is valid
-                size_t lineLength = (editor.text->lines[editor.cursor.line]->position + editor.text->lines[editor.cursor.line]->length) - editor.text->lines[editor.cursor.line]->gapEnd;
+                cursor->line = newMouseY;
+
+                GapBuffer* lineBuffer = text->lines[cursor->line];
+                size_t lineLength = (lineBuffer->position + lineBuffer->length) - lineBuffer->gapEnd;
+
                 if (newMouseX > lineLength) {
                     newMouseX = lineLength;
                 }
-                editor.cursor.index = newMouseX;
-                moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
+                cursor->index = newMouseX;
+
+                moveCursor(lineBuffer, cursor->index);
                 break;
             }
             case SDL_MOUSEBUTTONUP:
@@ -553,29 +559,37 @@ int main(int argc, char const* argv[])
             {
                 if (scrollWheelClicked) {
                     SDL_GetMouseState(&mouseX, &mouseY);
-                    Vec2 mousePos = { .x = mouseX, .y = mouseY };
-                    int scrollbarHeight = buttons.clickableRects[0].h;
-                    float lineNum = mouseY / ((float)editor.view.windowSize.y - (float)scrollbarHeight) * (float)(editor.text->lineCount - 1);
+
+                    // Vec2 mousePos = { .x = mouseX, .y = mouseY };
+
+                    Viewport* viewport = &editor.view;
+                    Text* text = editor.text;
+                    SDL_Rect* scrollbarRect = &buttons.clickableRects[0];
+
+                    int scrollbarHeight = scrollbarRect->h;
+                    float lineNum = mouseY / ((float)viewport->windowSize.y - (float)scrollbarHeight) * (float)(text->lineCount - 1);
+
                     scrollTo(&editor, (int)lineNum);
                 }
                 break;
             }
             case SDL_MOUSEWHEEL:
             {
-                // printf("Mouse Wheel Event\n");
-                // printf("Direction=%d\n", event.wheel.direction);
-                // printf("Scroll Amount=%d\n", event.wheel.y);
-                int shiftmod = lshift;
-                if (shiftmod) {
-                    if (event.wheel.direction == 0) {
-                        scroll(&editor, event.wheel.y, event.wheel.x);
+                int shiftMod = lshift;
+
+                int wheelX = event.wheel.x;
+                int wheelY = event.wheel.y;
+                int direction = event.wheel.direction;
+
+                if (direction == 0) {
+                    if (shiftMod) {
+                        scroll(&editor, wheelY, wheelX);
+                    }
+                    else {
+                        scroll(&editor, wheelX, wheelY);
                     }
                 }
-                else {
-                    if (event.wheel.direction == 0) {
-                        scroll(&editor, event.wheel.x, event.wheel.y);
-                    }
-                }
+
                 break;
             }
             case SDL_QUIT:
@@ -586,26 +600,27 @@ int main(int argc, char const* argv[])
             case SDL_TEXTINPUT:
             {
                 int ctrlMod = lctrl || rctrl;
-                if (ctrlMod == 0) {
+
+                if (!ctrlMod) {
+                    Text* text = editor.text;
+                    Cursor* cursor = &editor.cursor;
+
                     size_t textSize = strlen(event.text.text);
-                    insertOnLine(editor.text, editor.cursor.line, event.text.text, textSize);
-                    editor.cursor.index += textSize;
+                    insertOnLine(text, cursor->line, event.text.text, textSize);
+                    cursor->index += textSize;
                 }
+
                 break;
             }
             case SDL_KEYUP:
             {
                 switch (event.key.keysym.sym) {
                 case SDLK_LCTRL:
-                {
                     lctrl = 0;
                     break;
-                }
                 case SDLK_LSHIFT:
-                {
                     lshift = 0;
                     break;
-                }
                 }
                 break;
             }
@@ -625,104 +640,122 @@ int main(int argc, char const* argv[])
                 case SDLK_s:
                 {
                     int ctrlMod = lctrl || rctrl;
-                    if (ctrlMod) {
-                        if (argc >= 2) {
-                            size_t prevLine = editor.cursor.line;
-                            size_t prevIndex = editor.cursor.index;
-                            char const* fileName = argv[1];
-                            saveFile(fileName, editor.text);
-                            moveCursor(editor.text->lines[prevLine], prevIndex);
-                            editor.cursor.line = prevLine;
-                            editor.cursor.index = prevIndex;
-                        }
+
+                    if (ctrlMod && argc >= 2) {
+                        Cursor* cursor = &editor.cursor;
+                        Text* text = editor.text;
+
+                        size_t prevLine = cursor->line;
+                        size_t prevIndex = cursor->index;
+                        const char* fileName = argv[1];
+
+                        saveFile(fileName, text);
+                        moveCursor(text->lines[prevLine], prevIndex);
+
+                        cursor->line = prevLine;
+                        cursor->index = prevIndex;
                     }
+
                     break;
                 }
                 case SDLK_BACKSPACE:
                 {
-                    if (editor.cursor.index > 0) {
-                        editor.cursor.index--;
-                        deleteFromLine(editor.text, editor.cursor.line);
+                    Cursor* cursor = &editor.cursor;
+                    Text* text = editor.text;
+
+                    if (cursor->index > 0) {
+                        cursor->index--;
+                        deleteFromLine(text, cursor->line);
                     }
-                    else {
-                        if (editor.cursor.line > 0) {
-                            // Delete line
-                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, editor.text->lineCount);
-                            size_t newIndex = deleteLine(editor.text, editor.cursor.line, editor.cursor.index);
-                            editor.cursor.line--;
-                            editor.cursor.index = newIndex;
-                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, editor.text->lineCount);
-                        }
+                    else if (cursor->line > 0) {
+                        size_t newIndex = deleteLine(text, cursor->line, cursor->index);
+                        cursor->line--;
+                        cursor->index = newIndex;
                     }
+
                     break;
                 }
                 case SDLK_RETURN:
                 {
-                    editor.cursor.line++;
-                    createNewLine(editor.text, editor.cursor.line, editor.cursor.index);
-                    editor.cursor.index = 0;
-                    moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
+                    Cursor* cursor = &editor.cursor;
+                    Text* text = editor.text;
+
+                    cursor->line++;
+                    createNewLine(text, cursor->line, cursor->index);
+                    cursor->index = 0;
+                    moveCursor(text->lines[cursor->line], cursor->index);
+
                     break;
                 }
                 case SDLK_LEFT:
                 {
-                    if (editor.cursor.index > 0) {
-                        cursorLeft(editor.text->lines[editor.cursor.line]);
-                        editor.cursor.index--;
+                    Cursor* cursor = &editor.cursor;
+                    Text* text = editor.text;
+                    GapBuffer* lineBuffer = text->lines[cursor->line];
+
+                    if (cursor->index > 0) {
+                        cursorLeft(lineBuffer);
+                        cursor->index--;
                     }
-                    else {
-                        if (editor.cursor.line > 0) {
-                            editor.cursor.line--;
-                            editor.cursor.index = moveCursorToEnd(editor.text->lines[editor.cursor.line]);
-                        }
+                    else if (cursor->line > 0) {
+                        cursor->line--;
+                        lineBuffer = text->lines[cursor->line];
+                        cursor->index = moveCursorToEnd(lineBuffer);
                     }
                     break;
                 }
+
                 case SDLK_RIGHT:
                 {
-                    if (editor.cursor.index < (editor.text->lines[editor.cursor.line]->position + editor.text->lines[editor.cursor.line]->length) - editor.text->lines[editor.cursor.line]->gapEnd) {
-                        cursorRight(editor.text->lines[editor.cursor.line]);
-                        editor.cursor.index++;
+                    Cursor* cursor = &editor.cursor;
+                    Text* text = editor.text;
+                    GapBuffer* lineBuffer = text->lines[cursor->line];
+                    size_t lineLength = (lineBuffer->position + lineBuffer->length) - lineBuffer->gapEnd;
+
+                    if (cursor->index < lineLength) {
+                        cursorRight(lineBuffer);
+                        cursor->index++;
                     }
-                    else {
-                        if (editor.cursor.line < editor.text->lineCount - 1) {
-                            editor.cursor.line++;
-                            editor.cursor.index = 0;
-                            moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
-                        }
+                    else if (cursor->line < text->lineCount - 1) {
+                        cursor->line++;
+                        cursor->index = 0;
+                        lineBuffer = text->lines[cursor->line];
+                        moveCursor(lineBuffer, cursor->index);
                     }
                     break;
                 }
+
                 case SDLK_UP:
                 {
-                    // Move Cursor
                     moveCursorUp(&editor);
-                    Vec2 cursorPos = {
-                        .x = 0,
-                        .y = 0
-                    };
+
+                    Vec2 cursorPos = { 0, 0 };
                     cursorToPos(&editor, &cursorPos);
-                    float scrollOffsetY = -(float)editor.view.scrollCountY * (float)editor.glyphMap->glyphHeight;
-                    cursorPos.y += scrollOffsetY;
-                    if (!isInViewBox(cursorPos, editor.view.windowSize)) {
+
+                    Viewport* viewport = &editor.view;
+                    Glyph_Map* glyphMap = editor.glyphMap;
+                    cursorPos.y += -(float)viewport->scrollCountY * (float)glyphMap->glyphHeight;
+
+                    if (!isInViewBox(cursorPos, viewport->windowSize)) {
                         scroll(&editor, 0, 1);
                         moveCursorUp(&editor);
                     }
                     break;
                 }
+
                 case SDLK_DOWN:
                 {
-                    // Move editor.cursor
                     moveCursorDown(&editor);
-                    Vec2 cursorPos = {
-                        .x = 0,
-                        .y = 0
-                    };
+
+                    Vec2 cursorPos = { 0, 0 };
                     cursorToPos(&editor, &cursorPos);
-                    float scrollOffsetY = -(float)editor.view.scrollCountY * (float)editor.glyphMap->glyphHeight;
-                    cursorPos.y += scrollOffsetY;
-                    cursorPos.y += editor.glyphMap->glyphHeight;
-                    if (!isInViewBox(cursorPos, editor.view.windowSize)) {
+
+                    Viewport* viewport = &editor.view;
+                    Glyph_Map* glyphMap = editor.glyphMap;
+                    cursorPos.y += -(float)viewport->scrollCountY * (float)glyphMap->glyphHeight;
+                    cursorPos.y += glyphMap->glyphHeight;
+
+                    if (!isInViewBox(cursorPos, viewport->windowSize)) {
                         scroll(&editor, 0, -1);
                         moveCursorDown(&editor);
                     }
