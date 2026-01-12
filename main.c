@@ -454,54 +454,54 @@ void renderScrollBar(Editor* editor, SDL_Renderer* renderer, ClickableItems* but
 
 int main(int argc, char const* argv[])
 {
-    // Initialize SDL window, renderer and font
+    // SDL and font initialization
     sdl_cc(SDL_Init(SDL_INIT_VIDEO));
     sdl_cc(TTF_Init());
+
     TTF_Font* font = NULL;
     loadFont("DejaVuSansMono.ttf", 18, &font);
-    SDL_Window* window = sdl_cp(SDL_CreateWindow("Text", 0, 0, 800, 600, SDL_WINDOW_RESIZABLE));
+
+    SDL_Window* window = sdl_cp(SDL_CreateWindow(
+        "Text", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600, SDL_WINDOW_RESIZABLE));
     SDL_Renderer* renderer = sdl_cp(SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED));
-    // Intialize global structs
-    Editor editor;
-    Viewport viewport;
-    // White color in rgba
-    SDL_Color color = { 255, 255, 255, 255 };
+
+    // Editor and viewport initialization
+    Editor editor = { 0 };
     editor.glyphMap = createGlyphMap();
+    editor.text = createText();
+    editor.cursor = (Cursor){ 0, 0 };
+    editor.view = (Viewport){ .windowSize = {0, 0}, .scrollCountX = 0, .scrollCountY = 0 };
+
+    // Colors
+    SDL_Color white = { 255, 255, 255, 255 };
+
+    // Font texture
     SDL_Texture* fontTexture = cacheTexture(renderer, font, editor.glyphMap);
-    SDL_Surface* cursorSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, 8, 8, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
-    // Make the cursor transparent.
+
+    // Cursor texture
+    SDL_Surface* cursorSurface = sdl_cp(SDL_CreateRGBSurface(
+        SDL_SWSURFACE, 8, 8, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
     sdl_cc(SDL_FillRect(cursorSurface, NULL, 0xAAFFFFFF));
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
-    editor.cursor = (Cursor){ .line = 0, .index = 0 };
-    int mouseX = 0;
-    int mouseY = 0;
-    int lshift = 0;
-    int lctrl = 0;
-    int rctrl = 0;
+
+    // Input state
+    int mouseX = 0, mouseY = 0;
+    int lshift = 0, lctrl = 0, rctrl = 0;
     int scrollWheelClicked = 0;
 
-    // Initialize viewport
-    viewport.windowSize.x = 0;
-    viewport.windowSize.y = 0;
-    viewport.scrollCountX = 0;
-    viewport.scrollCountY = 0;
+    // Clickable buttons
+    SDL_Rect buttonsLocations[10] = { 0 };
+    ClickableItems buttons = { .clickableRects = buttonsLocations, .count = 1 };
 
-    editor.view = viewport;
-    editor.text = createText();
-    bool exit = false;
-
-    // Define Clickable Buttons (TODO: Make this a function to check for bounds)
-    SDL_Rect buttonsLocations[10];
-    ClickableItems buttons = { .clickableRects = buttonsLocations, .count = 0 };
-    buttons.clickableRects[0] = (SDL_Rect){ .h = 0, .w = 0, .x = 0, .y = 0 };
-    buttons.count += 1;
-
+    // File loading
     if (argc >= 2) {
-        char const* fileName = argv[1];
+        const char* fileName = argv[1];
         openFile(fileName, editor.text);
         moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
     }
 
+    // Main loop
+    bool exit = false;
     while (!exit) {
         SDL_Event event = { 0 };
         while (SDL_PollEvent(&event)) {
@@ -730,20 +730,12 @@ int main(int argc, char const* argv[])
                 }
                 case SDLK_PAGEUP:
                 {
-                    if (editor.view.scrollCountX == 0) {
-                        break;
-                    }
-                    editor.view.scrollCountX--;
-                    // moveCursorUp(&editor.cursor, editor.text);
+                    // TODO
                     break;
                 }
                 case SDLK_PAGEDOWN:
                 {
-                    if (editor.view.scrollCountX == editor.text->lineCount - 1) {
-                        break;
-                    }
-                    editor.view.scrollCountX++;
-                    // moveCursorDown(&editor.cursor, editor.text);
+                    // TODO
                     break;
                 }
                 case SDLK_TAB:
@@ -752,7 +744,6 @@ int main(int argc, char const* argv[])
                     char* tabString = "    ";
                     insertOnLine(editor.text, editor.cursor.line, tabString, strlen(tabString));
                     editor.cursor.index += strlen(tabString);
-                    // printf("This is sizeof=%ld\n", sizeof(tabString));
                 }
                 }
                 break;
@@ -764,17 +755,22 @@ int main(int argc, char const* argv[])
         sdl_cc(SDL_RenderClear(renderer));
         renderText(&editor, renderer, fontTexture, cursorTexture);
         renderScrollBar(&editor, renderer, &buttons);
-        // SDL_RenderCopy(renderer, fontTexture, NULL, &tempRect);
         SDL_RenderPresent(renderer);
     }
+    // Free allocated Text and Glyphmap objects
     freeText(editor.text);
     freeGlyphMap(editor.glyphMap);
+
+    // Free font
     TTF_CloseFont(font);
+
+    // Free Surfaces and textures
     SDL_DestroyTexture(cursorTexture);
     SDL_FreeSurface(cursorSurface);
     SDL_DestroyTexture(fontTexture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
+
     SDL_Quit();
     return 0;
 }
