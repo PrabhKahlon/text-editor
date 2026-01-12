@@ -37,6 +37,7 @@ typedef struct {
 // List of clickable items
 typedef struct {
     SDL_Rect* clickableRects;
+    int count;
 } ClickableItems;
 
 void sdl_cc(int code)
@@ -283,6 +284,46 @@ void scroll(int x, int y, Text* text) {
     }
 }
 
+void scrollTo(int lineNum, Text* text) {
+    int scrollAmountX = 0 * SCROLL_STEP_X * SCROLL_DIRECTION;
+    int newY = lineNum - scrollCountY;
+    int scrollAmountY = newY;
+    long newIndexX = (long)scrollCountX + scrollAmountX;
+    long newIndexY = (long)scrollCountY + scrollAmountY;
+    if (newIndexX < 0) {
+        scrollCountX = 0;
+    }
+    else if ((scrollCountX + scrollAmountX) > MAX_HORIZONTAL_SCROLL) {
+        scrollCountX = MAX_HORIZONTAL_SCROLL;
+    }
+    else {
+        scrollCountX += scrollAmountX;
+    }
+    if (newIndexY < 0) {
+        scrollCountY = 0;
+    }
+    else if ((scrollCountY + scrollAmountY) > (text->lineCount - 1)) {
+        scrollCountY = text->lineCount - 1;
+    }
+    else {
+        scrollCountY += scrollAmountY;
+    }
+}
+
+bool mouseOnButton(int curMouseX, int curMouseY, ClickableItems* buttons) {
+    for(int i = 0; i < buttons->count; i++) {
+        SDL_Rect* buttonRect = &buttons->clickableRects[i];
+        // printf("Button Detect: %d, %d, %d, %d\n", curMouseX, curMouseY, buttonRect->x, buttonRect->y);
+        if(curMouseX >= buttonRect->x &&
+        curMouseY >= buttonRect->y &&
+        curMouseX <= (buttonRect->x + buttonRect->w) &&
+        curMouseY <= (buttonRect->y + buttonRect->h)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void mouseToLinePos(size_t* newMouseX, size_t* newMouseY, int curMouseX, int curMouseY, int glyphWidth, int glyphHeight)
 {
     // Calculate scroll offset like usual and subtract from mouse pos to get line (double negative)
@@ -339,12 +380,12 @@ void renderScrollBar(SDL_Renderer* renderer, Text* text, int glyphHeight, Clicka
     int scrollbarHeight = (windowSize.y) / (text->lineCount - 1) * glyphHeight;
     float scrollbarOffset = ((float)scrollCountY / (float)(text->lineCount - 1)) * ((float)windowSize.y - (float)scrollbarHeight);
     // printf("%f\n", scrollbarOffset);
-    SDL_Rect sqRect = buttons->clickableRects[0];
-    sqRect.h = scrollbarHeight;
-    sqRect.w = SCROLLBAR_WIDTH;
-    sqRect.x = windowSize.x - SCROLLBAR_WIDTH;
-    sqRect.y = (int)scrollbarOffset;
-    SDL_RenderCopy(renderer, sqTexture, NULL, &sqRect);
+    SDL_Rect* sqRect = &buttons->clickableRects[0];
+    sqRect->h = scrollbarHeight;
+    sqRect->w = SCROLLBAR_WIDTH;
+    sqRect->x = windowSize.x - SCROLLBAR_WIDTH;
+    sqRect->y = (int)scrollbarOffset;
+    SDL_RenderCopy(renderer, sqTexture, NULL, sqRect);
     SDL_FreeSurface(sqSurface);
     SDL_DestroyTexture(sqTexture);
 }
@@ -371,6 +412,7 @@ int main(int argc, char const* argv[])
     int lshift = 0;
     int lctrl = 0;
     int rctrl = 0;
+    int scrollWheelClicked = 0;
 
     minimumScrollLength = glyphMap->glyphHeight;
     scrollCountY = 0;
@@ -378,10 +420,11 @@ int main(int argc, char const* argv[])
     Text* text = createText();
     bool exit = false;
 
-    // Define Clickable Buttons
+    // Define Clickable Buttons (TODO: Make this a function to check for bounds)
     SDL_Rect buttonsLocations[10];
-    ClickableItems buttons = {.clickableRects = buttonsLocations};
+    ClickableItems buttons = {.clickableRects = buttonsLocations, .count = 0};
     buttons.clickableRects[0] = (SDL_Rect) {.h = 0, .w = 0, .x = 0, .y = 0};
+    buttons.count += 1;
 
     if (argc >= 2) {
         char const* fileName = argv[1];
@@ -407,6 +450,13 @@ int main(int argc, char const* argv[])
             case SDL_MOUSEBUTTONDOWN:
             {
                 SDL_GetMouseState(&mouseX, &mouseY);
+                // Check if a button has been clicked
+                if(mouseOnButton(mouseX, mouseY, &buttons)) {
+                    printf("Button Clicked!\n");
+                    // Currently the only button is the scrollwheel so start scrolling
+                    scrollWheelClicked = 1;
+                    break;
+                }
                 size_t newMouseX = 0;
                 size_t newMouseY = 0;
                 mouseToLinePos(&newMouseX, &newMouseY, mouseX, mouseY, glyphMap->glyphWidth, glyphMap->glyphHeight);
@@ -422,6 +472,22 @@ int main(int argc, char const* argv[])
                 }
                 cursor.index = newMouseX;
                 moveCursor(text->lines[cursor.line], cursor.index);
+                break;
+            }
+            case SDL_MOUSEBUTTONUP:
+            {
+                scrollWheelClicked = 0;
+                break;
+            }
+            case SDL_MOUSEMOTION:
+            {
+                if(scrollWheelClicked) {
+                    SDL_GetMouseState(&mouseX, &mouseY);
+                    Vec2 mousePos = {.x = mouseX, .y = mouseY};
+                    int scrollbarHeight = buttons.clickableRects[0].h;
+                    float lineNum = mouseY / ((float)windowSize.y - (float)scrollbarHeight) * (float)(text->lineCount - 1);
+                    scrollTo((int)lineNum, text);
+                }
                 break;
             }
             case SDL_MOUSEWHEEL:
