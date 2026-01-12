@@ -39,7 +39,7 @@ void saveFile(char const* fileName, Text* text)
     }
     for(size_t i = 0; i < text->lineCount; i++) {
         moveCursorToEnd(text->lines[i]);
-        fwrite(text->lines[i]->string, sizeof(char), text->lines[i]->cursor, txtFile);
+        fwrite(text->lines[i]->string, sizeof(char), text->lines[i]->position, txtFile);
         //fputs(text->lines[i]->string, txtFile);
         if (i != (text->lineCount - 1)) {
             fputs("\n", txtFile);

@@ -21,6 +21,11 @@
 #define SCROLLBAR_WIDTH 15
 
 typedef struct {
+    size_t line;
+    size_t index;
+} Cursor;
+
+typedef struct {
     Vec2 windowSize;
     size_t scrollCountX;
     size_t scrollCountY;
@@ -30,14 +35,8 @@ typedef struct {
     Text *text;
     Cursor cursor;
     Viewport view;
-    Glyph_Map *glyphs;
+    Glyph_Map *glyphMap;
 } Editor;
-
-typedef struct {
-    size_t line;
-    size_t index;
-    // Vec2 pos;
-} Cursor;
 
 // List of clickable items
 typedef struct {
@@ -165,7 +164,7 @@ void renderCursor(SDL_Renderer* renderer, float offsetX, float offsetY, Cursor* 
     destRect.x += offsetX + X_OFFSET;
     destRect.y += offsetY + Y_OFFSET;
 
-    for (size_t i = 0; i < text->cursor; i++) {
+    for (size_t i = 0; i < text->position; i++) {
         int glyph = text->string[i];
         if (glyph == 10) {
             // destRect.y += glyphMap->glyphHeight;
@@ -228,7 +227,7 @@ void renderChar(SDL_Renderer* renderer, const char c, Vec2* pos, SDL_Texture* fo
 
 void renderLine(SDL_Renderer* renderer, Vec2* linePos, GapBuffer* line, SDL_Texture* font, SDL_Texture* cursor, SDL_Color color, Glyph_Map* glyphMap)
 {
-    for (size_t i = 0; i < line->cursor; i++) {
+    for (size_t i = 0; i < line->position; i++) {
         renderChar(renderer, line->string[i], linePos, font, color, glyphMap);
     }
     for (size_t i = line->gapEnd; i < line->length; i++) {
@@ -377,6 +376,7 @@ void moveCursorUp(Cursor* cursor, Text* text)
     }
 }
 
+// TODO: Move allocation and deallocation to 1 time call
 void renderScrollBar(SDL_Renderer* renderer, Text* text, int glyphHeight, ClickableItems* buttons, Viewport* viewport) {
     SDL_Surface* sqSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, 50, 50, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
     sdl_cc(SDL_FillRect(sqSurface, NULL, 0xAAFFFFFF));
@@ -409,13 +409,13 @@ int main(int argc, char const* argv[])
     Viewport viewport;
     // White color in rgba
     SDL_Color color = { 255, 255, 255, 255 };
-    Glyph_Map* glyphMap = createGlyphMap();
-    SDL_Texture* fontTexture = cacheTexture(renderer, font, glyphMap);
+    editor.glyphMap = createGlyphMap();
+    SDL_Texture* fontTexture = cacheTexture(renderer, font, editor.glyphMap);
     SDL_Surface* cursorSurface = sdl_cp(SDL_CreateRGBSurface(SDL_SWSURFACE, 8, 8, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
     // Make the cursor transparent.
     sdl_cc(SDL_FillRect(cursorSurface, NULL, 0xAAFFFFFF));
     SDL_Texture* cursorTexture = sdl_cp(SDL_CreateTextureFromSurface(renderer, cursorSurface));
-    Cursor cursor = { .line = 0, .index = 0 };
+    editor.cursor = (Cursor){ .line = 0, .index = 0 };
     int mouseX = 0;
     int mouseY = 0;
     int lshift = 0;
@@ -423,11 +423,14 @@ int main(int argc, char const* argv[])
     int rctrl = 0;
     int scrollWheelClicked = 0;
 
-    // Init viewport
+    // Initialize viewport
+    viewport.windowSize.x = 0;
+    viewport.windowSize.y = 0;
     viewport.scrollCountX = 0;
     viewport.scrollCountY = 0;
 
-    Text* text = createText();
+    editor.view = viewport;
+    editor.text = createText();
     bool exit = false;
 
     // Define Clickable Buttons (TODO: Make this a function to check for bounds)
@@ -438,8 +441,8 @@ int main(int argc, char const* argv[])
 
     if (argc >= 2) {
         char const* fileName = argv[1];
-        openFile(fileName, text);
-        moveCursor(text->lines[cursor.line], cursor.index);
+        openFile(fileName, editor.text);
+        moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
     }
 
     while (!exit) {
@@ -451,8 +454,8 @@ int main(int argc, char const* argv[])
                 if (event.window.event == SDL_WINDOWEVENT_RESIZED) {
                     int winW, winH = 0;
                     SDL_GetWindowSize(window, &winW, &winH);
-                    viewport.windowSize.x = winW;
-                    viewport.windowSize.y = winH;
+                    editor.view.windowSize.x = winW;
+                    editor.view.windowSize.y = winH;
                     // printf("Window size w=%d, h=%d\n", windowW, windowH);
                 }
                 break;
@@ -469,19 +472,19 @@ int main(int argc, char const* argv[])
                 }
                 size_t newMouseX = 0;
                 size_t newMouseY = 0;
-                mouseToLinePos(&newMouseX, &newMouseY, mouseX, mouseY, glyphMap->glyphWidth, glyphMap->glyphHeight, &viewport);
+                mouseToLinePos(&newMouseX, &newMouseY, mouseX, mouseY, editor.glyphMap->glyphWidth, editor.glyphMap->glyphHeight, &editor.view);
                 // Check if line postion is valid
-                if (newMouseY > text->lineCount - 1) {
-                    newMouseY = text->lineCount - 1;
+                if (newMouseY > editor.text->lineCount - 1) {
+                    newMouseY = editor.text->lineCount - 1;
                 }
-                cursor.line = newMouseY;
+                editor.cursor.line = newMouseY;
                 // Check if column position is valid
-                size_t lineLength = (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd;
+                size_t lineLength = (editor.text->lines[editor.cursor.line]->position + editor.text->lines[editor.cursor.line]->length) - editor.text->lines[editor.cursor.line]->gapEnd;
                 if (newMouseX > lineLength) {
                     newMouseX = lineLength;
                 }
-                cursor.index = newMouseX;
-                moveCursor(text->lines[cursor.line], cursor.index);
+                editor.cursor.index = newMouseX;
+                moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
                 break;
             }
             case SDL_MOUSEBUTTONUP:
@@ -495,8 +498,8 @@ int main(int argc, char const* argv[])
                     SDL_GetMouseState(&mouseX, &mouseY);
                     Vec2 mousePos = {.x = mouseX, .y = mouseY};
                     int scrollbarHeight = buttons.clickableRects[0].h;
-                    float lineNum = mouseY / ((float)viewport.windowSize.y - (float)scrollbarHeight) * (float)(text->lineCount - 1);
-                    scrollTo((int)lineNum, text, &viewport);
+                    float lineNum = mouseY / ((float)editor.view.windowSize.y - (float)scrollbarHeight) * (float)(editor.text->lineCount - 1);
+                    scrollTo((int)lineNum, editor.text, &editor.view);
                 }
                 break;
             }
@@ -508,12 +511,12 @@ int main(int argc, char const* argv[])
                 int shiftmod = lshift;
                 if (shiftmod) {
                     if (event.wheel.direction == 0) {
-                        scroll(event.wheel.y, event.wheel.x, text, &viewport);
+                        scroll(event.wheel.y, event.wheel.x, editor.text, &editor.view);
                     }
                 }
                 else {
                     if (event.wheel.direction == 0) {
-                        scroll(event.wheel.x, event.wheel.y, text, &viewport);
+                        scroll(event.wheel.x, event.wheel.y, editor.text, &editor.view);
                     }
                 }
                 break;
@@ -528,8 +531,8 @@ int main(int argc, char const* argv[])
                 int ctrlMod = lctrl || rctrl;
                 if (ctrlMod == 0) {
                     size_t textSize = strlen(event.text.text);
-                    insertOnLine(text, cursor.line, event.text.text, textSize);
-                    cursor.index += textSize;
+                    insertOnLine(editor.text, editor.cursor.line, event.text.text, textSize);
+                    editor.cursor.index += textSize;
                 }
                 break;
             }
@@ -567,68 +570,68 @@ int main(int argc, char const* argv[])
                     int ctrlMod = lctrl || rctrl;
                     if (ctrlMod) {
                         if (argc >= 2) {
-                            size_t prevLine = cursor.line;
-                            size_t prevIndex = cursor.index;
+                            size_t prevLine = editor.cursor.line;
+                            size_t prevIndex = editor.cursor.index;
                             char const* fileName = argv[1];
-                            saveFile(fileName, text);
-                            moveCursor(text->lines[prevLine], prevIndex);
-                            cursor.line = prevLine;
-                            cursor.index = prevIndex;
+                            saveFile(fileName, editor.text);
+                            moveCursor(editor.text->lines[prevLine], prevIndex);
+                            editor.cursor.line = prevLine;
+                            editor.cursor.index = prevIndex;
                         }
                     }
                     break;
                 }
                 case SDLK_BACKSPACE:
                 {
-                    if (cursor.index > 0) {
-                        cursor.index--;
-                        deleteFromLine(text, cursor.line);
+                    if (editor.cursor.index > 0) {
+                        editor.cursor.index--;
+                        deleteFromLine(editor.text, editor.cursor.line);
                     }
                     else {
-                        if (cursor.line > 0) {
+                        if (editor.cursor.line > 0) {
                             // Delete line
-                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
-                            size_t newIndex = deleteLine(text, cursor.line, cursor.index);
-                            cursor.line--;
-                            cursor.index = newIndex;
-                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, text->lineCount);
+                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, editor.text->lineCount);
+                            size_t newIndex = deleteLine(editor.text, editor.cursor.line, editor.cursor.index);
+                            editor.cursor.line--;
+                            editor.cursor.index = newIndex;
+                            // printf("Current Line=%ld, Total Lines = %ld\n", cursor.line, editor.text->lineCount);
                         }
                     }
                     break;
                 }
                 case SDLK_RETURN:
                 {
-                    cursor.line++;
-                    createNewLine(text, cursor.line, cursor.index);
-                    cursor.index = 0;
-                    moveCursor(text->lines[cursor.line], cursor.index);
+                    editor.cursor.line++;
+                    createNewLine(editor.text, editor.cursor.line, editor.cursor.index);
+                    editor.cursor.index = 0;
+                    moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
                     break;
                 }
                 case SDLK_LEFT:
                 {
-                    if (cursor.index > 0) {
-                        cursorLeft(text->lines[cursor.line]);
-                        cursor.index--;
+                    if (editor.cursor.index > 0) {
+                        cursorLeft(editor.text->lines[editor.cursor.line]);
+                        editor.cursor.index--;
                     }
                     else {
-                        if (cursor.line > 0) {
-                            cursor.line--;
-                            cursor.index = moveCursorToEnd(text->lines[cursor.line]);
+                        if (editor.cursor.line > 0) {
+                            editor.cursor.line--;
+                            editor.cursor.index = moveCursorToEnd(editor.text->lines[editor.cursor.line]);
                         }
                     }
                     break;
                 }
                 case SDLK_RIGHT:
                 {
-                    if (cursor.index < (text->lines[cursor.line]->cursor + text->lines[cursor.line]->length) - text->lines[cursor.line]->gapEnd) {
-                        cursorRight(text->lines[cursor.line]);
-                        cursor.index++;
+                    if (editor.cursor.index < (editor.text->lines[editor.cursor.line]->position + editor.text->lines[editor.cursor.line]->length) - editor.text->lines[editor.cursor.line]->gapEnd) {
+                        cursorRight(editor.text->lines[editor.cursor.line]);
+                        editor.cursor.index++;
                     }
                     else {
-                        if (cursor.line < text->lineCount - 1) {
-                            cursor.line++;
-                            cursor.index = 0;
-                            moveCursor(text->lines[cursor.line], cursor.index);
+                        if (editor.cursor.line < editor.text->lineCount - 1) {
+                            editor.cursor.line++;
+                            editor.cursor.index = 0;
+                            moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
                         }
                     }
                     break;
@@ -636,62 +639,62 @@ int main(int argc, char const* argv[])
                 case SDLK_UP:
                 {
                     // Move Cursor
-                    moveCursorUp(&cursor, text);
+                    moveCursorUp(&editor.cursor, editor.text);
                     Vec2 cursorPos = {
                         .x = 0,
                         .y = 0
                     };
-                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphWidth, glyphMap->glyphHeight);
-                    float scrollOffsetY = -(float)viewport.scrollCountY * (float)glyphMap->glyphHeight;
+                    cursorToPos(&editor.cursor, &cursorPos, editor.glyphMap->glyphWidth, editor.glyphMap->glyphHeight);
+                    float scrollOffsetY = -(float)editor.view.scrollCountY * (float)editor.glyphMap->glyphHeight;
                     cursorPos.y += scrollOffsetY;
-                    if (!isInViewBox(cursorPos, viewport.windowSize)) {
-                        scroll(0, 1, text, &viewport);
-                        moveCursorUp(&cursor, text);
+                    if (!isInViewBox(cursorPos, editor.view.windowSize)) {
+                        scroll(0, 1, editor.text, &editor.view);
+                        moveCursorUp(&editor.cursor, editor.text);
                     }
                     break;
                 }
                 case SDLK_DOWN:
                 {
-                    // Move cursor
-                    moveCursorDown(&cursor, text);
+                    // Move editor.cursor
+                    moveCursorDown(&editor.cursor, editor.text);
                     Vec2 cursorPos = {
                         .x = 0,
                         .y = 0
                     };
-                    cursorToPos(&cursor, &cursorPos, glyphMap->glyphWidth, glyphMap->glyphHeight);
-                    float scrollOffsetY = -(float)viewport.scrollCountY * (float)glyphMap->glyphHeight;
+                    cursorToPos(&editor.cursor, &cursorPos, editor.glyphMap->glyphWidth, editor.glyphMap->glyphHeight);
+                    float scrollOffsetY = -(float)editor.view.scrollCountY * (float)editor.glyphMap->glyphHeight;
                     cursorPos.y += scrollOffsetY;
-                    cursorPos.y += glyphMap->glyphHeight;
-                    if (!isInViewBox(cursorPos, viewport.windowSize)) {
-                        scroll(0, -1, text, &viewport);
-                        moveCursorDown(&cursor, text);
+                    cursorPos.y += editor.glyphMap->glyphHeight;
+                    if (!isInViewBox(cursorPos, editor.view.windowSize)) {
+                        scroll(0, -1, editor.text, &editor.view);
+                        moveCursorDown(&editor.cursor, editor.text);
                     }
                     break;
                 }
                 case SDLK_PAGEUP:
                 {
-                    if (viewport.scrollCountX == 0) {
+                    if (editor.view.scrollCountX == 0) {
                         break;
                     }
-                    viewport.scrollCountX--;
-                    // moveCursorUp(&cursor, text);
+                    editor.view.scrollCountX--;
+                    // moveCursorUp(&editor.cursor, editor.text);
                     break;
                 }
                 case SDLK_PAGEDOWN:
                 {
-                    if (viewport.scrollCountX == text->lineCount - 1) {
+                    if (editor.view.scrollCountX == editor.text->lineCount - 1) {
                         break;
                     }
-                    viewport.scrollCountX++;
-                    // moveCursorDown(&cursor, text);
+                    editor.view.scrollCountX++;
+                    // moveCursorDown(&editor.cursor, editor.text);
                     break;
                 }
                 case SDLK_TAB:
                 {
                     // Add 4 spaces for each tab key press
                     char* tabString = "    ";
-                    insertOnLine(text, cursor.line, tabString, strlen(tabString));
-                    cursor.index += strlen(tabString);
+                    insertOnLine(editor.text, editor.cursor.line, tabString, strlen(tabString));
+                    editor.cursor.index += strlen(tabString);
                     // printf("This is sizeof=%ld\n", sizeof(tabString));
                 }
                 }
@@ -702,13 +705,13 @@ int main(int argc, char const* argv[])
 
         sdl_cc(SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0));
         sdl_cc(SDL_RenderClear(renderer));
-        renderText(renderer, text, &cursor, fontTexture, cursorTexture, color, glyphMap, &viewport);
-        renderScrollBar(renderer, text, glyphMap->glyphHeight, &buttons, &viewport);
+        renderText(renderer, editor.text, &editor.cursor, fontTexture, cursorTexture, color, editor.glyphMap, &editor.view);
+        renderScrollBar(renderer, editor.text, editor.glyphMap->glyphHeight, &buttons, &editor.view);
         // SDL_RenderCopy(renderer, fontTexture, NULL, &tempRect);
         SDL_RenderPresent(renderer);
     }
-    freeText(text);
-    freeGlyphMap(glyphMap);
+    freeText(editor.text);
+    freeGlyphMap(editor.glyphMap);
     TTF_CloseFont(font);
     SDL_DestroyTexture(cursorTexture);
     SDL_FreeSurface(cursorSurface);

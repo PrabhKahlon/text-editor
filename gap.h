@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 typedef struct {
-    size_t cursor;
+    size_t position;
     size_t gapEnd;
     size_t length;
     char* string;
