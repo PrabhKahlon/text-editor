@@ -33,8 +33,10 @@ typedef struct {
 
 typedef struct {
     Text* text;
-    Cursor cursor;
-    Viewport view;
+    Cursor cursorStorage;
+    Cursor* cursor;
+    Viewport viewStorage;
+    Viewport* view;
     Glyph_Map* glyphMap;
 } Editor;
 
@@ -154,10 +156,10 @@ SDL_Texture* cacheTexture(SDL_Renderer* renderer, TTF_Font* font, Glyph_Map* gly
 // Very basic cursor
 void renderCursor(Editor* editor, SDL_Renderer* renderer, float offsetX, float offsetY, SDL_Texture* cursorTexture)
 {
-    Cursor* cursor = &editor->cursor;
+    Cursor* cursor = editor->cursor;
     GapBuffer* text = editor->text->lines[cursor->line];
     Glyph_Map* glyphMap = editor->glyphMap;
-    Viewport* viewport = &editor->view;
+    Viewport* viewport = editor->view;
 
     size_t cursorLine = cursor->line;
     size_t textPos = text->position;
@@ -256,7 +258,7 @@ void renderLine(Editor* editor, SDL_Renderer* renderer, Vec2* linePos, GapBuffer
 void renderText(Editor* editor, SDL_Renderer* renderer, SDL_Texture* fontTexture, SDL_Texture* cursorTexture)
 {
     Text* text = editor->text;
-    Viewport* viewport = &editor->view;
+    Viewport* viewport = editor->view;
     Glyph_Map* glyphMap = editor->glyphMap;
 
     Vec2 pen = { 0, 0 };
@@ -285,7 +287,7 @@ void renderText(Editor* editor, SDL_Renderer* renderer, SDL_Texture* fontTexture
 
 void scroll(Editor* editor, int x, int y) {
     Text* text = editor->text;
-    Viewport* viewport = &editor->view;
+    Viewport* viewport = editor->view;
 
     int scrollAmountX = x * SCROLL_STEP_X * SCROLL_DIRECTION;
     int scrollAmountY = y * SCROLL_STEP_Y * SCROLL_DIRECTION;
@@ -316,7 +318,7 @@ void scroll(Editor* editor, int x, int y) {
 
 void scrollTo(Editor* editor, int lineNum) {
     Text* text = editor->text;
-    Viewport* viewport = &editor->view;
+    Viewport* viewport = editor->view;
 
     int scrollAmountX = 0 * SCROLL_STEP_X * SCROLL_DIRECTION;
     int newY = lineNum - (int)viewport->scrollCountY;
@@ -362,7 +364,7 @@ bool mouseOnButton(int curMouseX, int curMouseY, ClickableItems* buttons) {
 
 void mouseToLinePos(Editor* editor, size_t* newMouseX, size_t* newMouseY, int curMouseX, int curMouseY)
 {
-    Viewport* viewport = &editor->view;
+    Viewport* viewport = editor->view;
     Glyph_Map* glyphMap = editor->glyphMap;
 
     float scrollOffsetX = -(float)viewport->scrollCountX * ((float)glyphMap->glyphHeight / 2.0f);
@@ -377,7 +379,7 @@ void mouseToLinePos(Editor* editor, size_t* newMouseX, size_t* newMouseY, int cu
 
 void cursorToPos(Editor* editor, Vec2* cursorPos)
 {
-    Cursor* cursor = &editor->cursor;
+    Cursor* cursor = editor->cursor;
     Glyph_Map* glyphMap = editor->glyphMap;
 
     float newCursorPosX = (float)cursor->index * (float)glyphMap->glyphWidth;
@@ -389,7 +391,7 @@ void cursorToPos(Editor* editor, Vec2* cursorPos)
 
 void moveCursorDown(Editor* editor)
 {
-    Cursor* cursor = &editor->cursor;
+    Cursor* cursor = editor->cursor;
     Text* text = editor->text;
 
     if (cursor->line < text->lineCount - 1) {
@@ -407,7 +409,7 @@ void moveCursorDown(Editor* editor)
 
 void moveCursorUp(Editor* editor)
 {
-    Cursor* cursor = &editor->cursor;
+    Cursor* cursor = editor->cursor;
     Text* text = editor->text;
 
     if (cursor->line > 0) {
@@ -427,7 +429,7 @@ void moveCursorUp(Editor* editor)
 void renderScrollBar(Editor* editor, SDL_Renderer* renderer, ClickableItems* buttons)
 {
     Text* text = editor->text;
-    Viewport* viewport = &editor->view;
+    Viewport* viewport = editor->view;
 
     SDL_Surface* sqSurface = sdl_cp(SDL_CreateRGBSurface(
         SDL_SWSURFACE, 50, 50, 32, 0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000));
@@ -469,8 +471,14 @@ int main(int argc, char const* argv[])
     Editor editor = { 0 };
     editor.glyphMap = createGlyphMap();
     editor.text = createText();
-    editor.cursor = (Cursor){ 0, 0 };
-    editor.view = (Viewport){ .windowSize = {0, 0}, .scrollCountX = 0, .scrollCountY = 0 };
+
+    // Point the pointers to the internal storage (To reduce pass by reference)
+    editor.cursor = &editor.cursorStorage;
+    editor.view = &editor.viewStorage;
+
+    // Initialize the storage
+    *editor.cursor = (Cursor){ 0, 0 };
+    *editor.view = (Viewport){ .windowSize = {0, 0}, .scrollCountX = 0, .scrollCountY = 0 };
 
     // Colors
     // SDL_Color white = { 255, 255, 255, 255 };
@@ -497,7 +505,7 @@ int main(int argc, char const* argv[])
     if (argc >= 2) {
         const char* fileName = argv[1];
         openFile(fileName, editor.text);
-        moveCursor(editor.text->lines[editor.cursor.line], editor.cursor.index);
+        moveCursor(editor.text->lines[editor.cursor->line], editor.cursor->index);
     }
 
     // Main loop
@@ -512,7 +520,7 @@ int main(int argc, char const* argv[])
                     int winW = 0, winH = 0;
                     SDL_GetWindowSize(window, &winW, &winH);
 
-                    Viewport* viewport = &editor.view;
+                    Viewport* viewport = editor.view;
                     viewport->windowSize.x = winW;
                     viewport->windowSize.y = winH;
                 }
@@ -532,7 +540,7 @@ int main(int argc, char const* argv[])
                 mouseToLinePos(&editor, &newMouseX, &newMouseY, mouseX, mouseY);
 
                 Text* text = editor.text;
-                Cursor* cursor = &editor.cursor;
+                Cursor* cursor = editor.cursor;
 
                 if (newMouseY > text->lineCount - 1) {
                     newMouseY = text->lineCount - 1;
@@ -562,7 +570,7 @@ int main(int argc, char const* argv[])
 
                     // Vec2 mousePos = { .x = mouseX, .y = mouseY };
 
-                    Viewport* viewport = &editor.view;
+                    Viewport* viewport = editor.view;
                     Text* text = editor.text;
                     SDL_Rect* scrollbarRect = &buttons.clickableRects[0];
 
@@ -603,7 +611,7 @@ int main(int argc, char const* argv[])
 
                 if (!ctrlMod) {
                     Text* text = editor.text;
-                    Cursor* cursor = &editor.cursor;
+                    Cursor* cursor = editor.cursor;
 
                     size_t textSize = strlen(event.text.text);
                     insertOnLine(text, cursor->line, event.text.text, textSize);
@@ -642,7 +650,7 @@ int main(int argc, char const* argv[])
                     int ctrlMod = lctrl || rctrl;
 
                     if (ctrlMod && argc >= 2) {
-                        Cursor* cursor = &editor.cursor;
+                        Cursor* cursor = editor.cursor;
                         Text* text = editor.text;
 
                         size_t prevLine = cursor->line;
@@ -660,7 +668,7 @@ int main(int argc, char const* argv[])
                 }
                 case SDLK_BACKSPACE:
                 {
-                    Cursor* cursor = &editor.cursor;
+                    Cursor* cursor = editor.cursor;
                     Text* text = editor.text;
 
                     if (cursor->index > 0) {
@@ -677,7 +685,7 @@ int main(int argc, char const* argv[])
                 }
                 case SDLK_RETURN:
                 {
-                    Cursor* cursor = &editor.cursor;
+                    Cursor* cursor = editor.cursor;
                     Text* text = editor.text;
 
                     cursor->line++;
@@ -689,7 +697,7 @@ int main(int argc, char const* argv[])
                 }
                 case SDLK_LEFT:
                 {
-                    Cursor* cursor = &editor.cursor;
+                    Cursor* cursor = editor.cursor;
                     Text* text = editor.text;
                     GapBuffer* lineBuffer = text->lines[cursor->line];
 
@@ -707,7 +715,7 @@ int main(int argc, char const* argv[])
 
                 case SDLK_RIGHT:
                 {
-                    Cursor* cursor = &editor.cursor;
+                    Cursor* cursor = editor.cursor;
                     Text* text = editor.text;
                     GapBuffer* lineBuffer = text->lines[cursor->line];
                     size_t lineLength = (lineBuffer->position + lineBuffer->length) - lineBuffer->gapEnd;
@@ -732,7 +740,7 @@ int main(int argc, char const* argv[])
                     Vec2 cursorPos = { 0, 0 };
                     cursorToPos(&editor, &cursorPos);
 
-                    Viewport* viewport = &editor.view;
+                    Viewport* viewport = editor.view;
                     Glyph_Map* glyphMap = editor.glyphMap;
                     cursorPos.y += -(float)viewport->scrollCountY * (float)glyphMap->glyphHeight;
 
@@ -750,7 +758,7 @@ int main(int argc, char const* argv[])
                     Vec2 cursorPos = { 0, 0 };
                     cursorToPos(&editor, &cursorPos);
 
-                    Viewport* viewport = &editor.view;
+                    Viewport* viewport = editor.view;
                     Glyph_Map* glyphMap = editor.glyphMap;
                     cursorPos.y += -(float)viewport->scrollCountY * (float)glyphMap->glyphHeight;
                     cursorPos.y += glyphMap->glyphHeight;
@@ -775,8 +783,8 @@ int main(int argc, char const* argv[])
                 {
                     // Add 4 spaces for each tab key press
                     char* tabString = "    ";
-                    insertOnLine(editor.text, editor.cursor.line, tabString, strlen(tabString));
-                    editor.cursor.index += strlen(tabString);
+                    insertOnLine(editor.text, editor.cursor->line, tabString, strlen(tabString));
+                    editor.cursor->index += strlen(tabString);
                 }
                 }
                 break;
